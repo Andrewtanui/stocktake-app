@@ -1,0 +1,30 @@
+{
+  "name": "ibky-stocktake",
+  "version": "0.1.0",
+  "description": "IBKY stock-take code app (UI demo)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:preview": "vite build --mode preview",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@microsoft/power-apps": "^1.5.0",
+    "lucide-react": "^1.52.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@microsoft/power-apps-cli": "1.2.0",
+    "@microsoft/power-apps-vite": "^1.0.2",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.63.0",
+    "typescript": "5.6",
+    "vite": "^6.4.4",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

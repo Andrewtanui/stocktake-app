@@ -1,0 +1,81 @@
+:root {
+  --brand-neumann-green: #006330;
+  --brand-fresh-green: #69ac45;
+  --brand-fresh-turquoise: #66c8cd;
+  --brand-yellow: #f0c522;
+  --brand-magenta: #ed1b5b;
+  --brand-orange: #ec5624;
+  --brand-neumann-red: #ed1c24;
+  --brand-black: #000000;
+  --brand-white: #ffffff;
+
+  --gradient-fresh: linear-gradient(90deg, var(--brand-fresh-turquoise), var(--brand-fresh-green));
+  --gradient-warm: linear-gradient(90deg, var(--brand-orange), var(--brand-magenta));
+
+  --surface: var(--brand-white);
+  --surface-subtle: color-mix(in srgb, var(--brand-black) 4%, var(--brand-white));
+  --text: var(--brand-black);
+  --text-on-dark: var(--brand-white);
+  --text-muted: var(--brand-black);
+  --border: color-mix(in srgb, var(--brand-black) 18%, var(--brand-white));
+  --action: var(--brand-neumann-green);
+  --action-text: var(--brand-white);
+  --positive: var(--brand-fresh-green);
+  --positive-soft: color-mix(in srgb, var(--brand-fresh-green) 18%, var(--brand-white));
+  --info: var(--brand-fresh-turquoise);
+  --info-soft: color-mix(in srgb, var(--brand-fresh-turquoise) 24%, var(--brand-white));
+  --warning: var(--brand-orange);
+  --warning-soft: color-mix(in srgb, var(--brand-orange) 15%, var(--brand-white));
+  --danger: var(--brand-neumann-red);
+  --danger-soft: color-mix(in srgb, var(--brand-neumann-red) 12%, var(--brand-white));
+  --pending: var(--brand-yellow);
+  --variance-shortage: var(--brand-neumann-red);
+  --variance-overage: var(--brand-orange);
+  --status-needs-decision-bg: var(--brand-yellow);
+  --status-needs-decision-text: var(--brand-black);
+  --status-recount-border: var(--brand-fresh-turquoise);
+  --status-recount-text: var(--brand-black);
+  --status-ticket-border: var(--border);
+  --status-ticket-text: var(--text);
+  --selected-tint: color-mix(in srgb, var(--brand-neumann-green) 6%, var(--brand-white));
+  --suggestion-tint: color-mix(in srgb, var(--brand-fresh-turquoise) 15%, var(--brand-white));
+  --focus: var(--brand-neumann-green);
+  --shadow-1: 0 1px 3px color-mix(in srgb, var(--brand-black) 10%, transparent);
+  --shadow-2: 0 8px 24px color-mix(in srgb, var(--brand-black) 12%, transparent);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 8px;
+  --rail: 236px;
+  --font-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-code: "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+
+  --bg: var(--surface);
+  --surface-2: var(--surface-subtle);
+  --fg: var(--text);
+  --muted: var(--text-muted);
+  --line: var(--border);
+  --green: var(--action);
+  --green-ink: var(--action);
+  --green-soft: var(--positive-soft);
+  --on-green: var(--action-text);
+  --jute: var(--positive);
+  --jute-soft: var(--positive-soft);
+  --ok: var(--positive);
+  --ok-soft: var(--positive-soft);
+  --warn: var(--warning);
+  --warn-soft: var(--warning-soft);
+  --crit: var(--danger);
+  --crit-soft: var(--danger-soft);
+  --f-ui: var(--font-sans);
+  --f-num: var(--font-sans);
+  --f-code: var(--font-code);
+  --r-s: var(--radius);
+  --r-m: var(--radius);
+
+  color-scheme: light;
+}
