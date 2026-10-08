@@ -1,126 +1,128 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { ClipboardCheck, Gauge, ListChecks, PenLine, ScanLine } from "lucide-react";
-import { CYCLE, VARIANCES, checks } from "./data/repository";
+import { createContext, useContext, useState } from "react";
+import { ClipboardList, Cloud, CloudOff, MessageSquareWarning, RotateCcw, ScanLine } from "lucide-react";
+import { STOCK_TAKE } from "./data/repository";
+import { useStore } from "./data/store";
 import type { SiteCode } from "./data/types";
-import { useWho } from "./PowerProvider";
-import CountHome from "./screens/CountHome";
+import Home from "./screens/Home";
 import SiteView from "./screens/SiteView";
-import ZoneView from "./screens/ZoneView";
-import CountLine from "./screens/CountLine";
-import Review from "./screens/Review";
-import LiveBoard from "./screens/LiveBoard";
-import Checks from "./screens/Checks";
-import SignOff from "./screens/SignOff";
+import StackView from "./screens/StackView";
+import CountLot from "./screens/CountLot";
+import AddLot from "./screens/AddLot";
+import OtherStock from "./screens/OtherStock";
+import MyCounts from "./screens/MyCounts";
+import Recounts from "./screens/Recounts";
+import Report from "./screens/Report";
 
-export type Tab = "count" | "review" | "live" | "checks" | "signoff";
+export type Tab = "count" | "counts" | "recounts" | "report";
 export type Route =
   | { tab: "count"; view: "home" }
   | { tab: "count"; view: "site"; site: SiteCode }
-  | { tab: "count"; view: "zone"; zone: string }
-  | { tab: "count"; view: "line"; zone: string; batch: string; typo?: boolean }
+  | { tab: "count"; view: "stack"; site: SiteCode; stack: string }
+  | { tab: "count"; view: "lot"; site: SiteCode; stack: string; batch: string; recount?: string }
+  | { tab: "count"; view: "add"; site: SiteCode; stack: string }
+  | { tab: "count"; view: "other"; site: SiteCode; stack: string }
   | { tab: Exclude<Tab, "count"> };
 
 const Nav = createContext<(r: Route) => void>(() => {});
 export const useNav = () => useContext(Nav);
 
-const TABS: { id: Tab; label: string; icon: typeof ScanLine; badge?: () => number }[] = [
-  { id: "count", label: "Count", icon: ScanLine },
-  { id: "review", label: "Review", icon: ClipboardCheck, badge: () => VARIANCES.filter((v) => v.state === "open").length },
-  { id: "live", label: "Live", icon: Gauge },
-  { id: "checks", label: "Checks", icon: ListChecks, badge: () => checks().filter((c) => c.severity === "high").length },
-  { id: "signoff", label: "Sign-off", icon: PenLine },
-];
-
-function fromHash(): Route {
-  const h = location.hash.replace("#", "") as Tab;
-  if (h === "count" || !TABS.some((t) => t.id === h)) return { tab: "count", view: "home" };
-  return { tab: h } as Route;
-}
+const SCREEN_NAMES: Record<string, string> = {
+  home: "Count home",
+  site: "Floor map / site",
+  stack: "Stack",
+  lot: "Count a lot",
+  add: "Add a lot",
+  other: "Other stock",
+  counts: "My counts",
+  recounts: "Recounts",
+};
 
 export default function App() {
-  const [route, setRoute] = useState<Route>(fromHash);
-  const who = useWho();
+  const store = useStore();
+  const [route, setRoute] = useState<Route>({ tab: "count", view: "home" });
+  const [lastScreen, setLastScreen] = useState("Count home");
 
   const go = (r: Route) => {
+    if (route.tab !== "report") setLastScreen(SCREEN_NAMES["view" in route ? route.view : route.tab]);
     setRoute(r);
-    try {
-      history.replaceState(null, "", "#" + r.tab);
-    } catch {
-      /* preview frames may refuse history changes */
-    }
-    document.getElementById("main")?.scrollTo({ top: 0 });
     window.scrollTo({ top: 0 });
   };
 
-  useEffect(() => {
-    const on = () => setRoute(fromHash());
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
-
   let screen;
   if (route.tab === "count") {
-    if (route.view === "home") screen = <CountHome />;
+    if (route.view === "home") screen = <Home />;
     else if (route.view === "site") screen = <SiteView code={route.site} />;
-    else if (route.view === "zone") screen = <ZoneView zone={route.zone} />;
-    else screen = <CountLine zone={route.zone} batch={route.batch} typo={route.typo} />;
-  } else if (route.tab === "review") screen = <Review />;
-  else if (route.tab === "live") screen = <LiveBoard />;
-  else if (route.tab === "checks") screen = <Checks />;
-  else screen = <SignOff />;
+    else if (route.view === "stack") screen = <StackView site={route.site} stack={route.stack} />;
+    else if (route.view === "lot")
+      screen = <CountLot key={route.batch + route.recount} site={route.site} stack={route.stack} batch={route.batch} recount={route.recount} />;
+    else if (route.view === "add") screen = <AddLot site={route.site} stack={route.stack} />;
+    else screen = <OtherStock site={route.site} stack={route.stack} />;
+  } else if (route.tab === "counts") screen = <MyCounts />;
+  else if (route.tab === "recounts") screen = <Recounts />;
+  else screen = <Report lastScreen={lastScreen} />;
+
+  const recounts = store.recountsOpen().length;
+  const tabs = [
+    { id: "count" as const, label: "Count", icon: ScanLine, badge: 0 },
+    { id: "counts" as const, label: "My counts", icon: ClipboardList, badge: store.pending },
+    { id: "recounts" as const, label: "Recounts", icon: RotateCcw, badge: recounts },
+    { id: "report" as const, label: "Report a problem", icon: MessageSquareWarning, badge: 0 },
+  ];
 
   return (
     <Nav.Provider value={go}>
-      <div className="shell">
-        <div className="brand-bar" aria-hidden="true" />
-        <aside className="rail" aria-label="Main">
-          <div className="brand">
+      <div className="app">
+        <header className="appbar">
+          <div className="appbar-inner">
             <BagMark />
-            <div>
-              <div className="brand-name">Stock Take</div>
-              <div className="brand-sub">Ibero Kenya</div>
+            <div className="appbar-title">
+              <div className="appbar-name">Stock Take</div>
+              <div className="appbar-sub">{STOCK_TAKE.title}</div>
             </div>
+            <button
+              className={"sync" + (store.online ? "" : " sync-off")}
+              onClick={() => store.setOnline(!store.online)}
+              title="Demo: tap to switch between online and offline"
+              aria-label={store.online ? "Online, all counts sent" : `Offline, ${store.pending} counts saved on this phone`}
+            >
+              {store.online ? <Cloud size={18} aria-hidden /> : <CloudOff size={18} aria-hidden />}
+              <span>
+{store.online ? "Online" : `Offline · ${store.pending}`}
+              </span>
+            </button>
           </div>
-          <div className="cycle">
-            <div className="cycle-name">{CYCLE.name}</div>
-            <div className="cycle-meta">
-              {CYCLE.countDate}, {CYCLE.now}
-            </div>
-            <div className="live-dot">Count in progress</div>
-          </div>
-          <nav className="tabs">
-            {TABS.map((t) => {
-              const n = t.badge?.() ?? 0;
-              return (
-                <button
-                  key={t.id}
-                  className="tab"
-                  aria-current={route.tab === t.id ? "page" : undefined}
-                  onClick={() => go(t.id === "count" ? { tab: "count", view: "home" } : ({ tab: t.id } as Route))}
-                >
-                  <t.icon size={20} strokeWidth={1.8} aria-hidden />
-                  <span>{t.label}</span>
-                  {n > 0 && <span className="badge">{n}</span>}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="me">
-            <span className="avatar" aria-hidden>
-              {who.name.split(" ").map((p) => p[0]).join("").slice(0, 2)}
-            </span>
-            <div>
-              <div className="me-name">{who.name}</div>
-              <div className="me-role">Counter · Ibero, rows D–E</div>
-            </div>
-          </div>
-        </aside>
-        <main id="main" className="main">
-          <div className="demo-note" role="note">
-            Design preview. Buttons and inputs respond, but nothing is saved. Stock figures are from the {CYCLE.snapshot}.
-          </div>
+        </header>
+
+        <main className="main">
+          <p className="demo-note" role="note">
+            Design preview of the counter app. Counts are kept in this browser tab only. Expected stock is from the{" "}
+            {STOCK_TAKE.snapshot}. Tap the cloud to try offline mode.
+          </p>
           {screen}
         </main>
+
+        {store.toast && (
+          <div className="toast" role="status">
+            {store.toast}
+          </div>
+        )}
+
+        <nav className="tabbar" aria-label="Main">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              className="tab"
+              aria-current={route.tab === t.id ? "page" : undefined}
+              onClick={() => go(t.id === "count" ? { tab: "count", view: "home" } : { tab: t.id })}
+            >
+              <span className="tab-icon">
+                <t.icon size={24} strokeWidth={1.9} aria-hidden />
+                {t.badge > 0 && <span className="badge">{t.badge}</span>}
+              </span>
+              <span className="tab-label">{t.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </Nav.Provider>
   );
@@ -130,10 +132,11 @@ export default function App() {
 function BagMark() {
   return (
     <svg className="mark" viewBox="0 0 40 40" aria-hidden>
-      <rect x="4" y="21" width="14" height="13" rx="4" fill="var(--jute)" />
-      <rect x="22" y="21" width="14" height="13" rx="4" fill="var(--jute)" />
-      <rect x="13" y="7" width="14" height="13" rx="4" fill="var(--green)" />
-      <path d="M8 24h6M26 24h6M17 10h6" stroke="var(--surface)" strokeWidth="1.6" strokeLinecap="round" />
+      <rect x="4" y="21" width="14" height="13" rx="4" fill="var(--brand-fresh-green)" />
+      <rect x="22" y="21" width="14" height="13" rx="4" fill="var(--brand-fresh-green)" />
+      <rect x="13" y="7" width="14" height="13" rx="4" fill="var(--brand-white)" />
+      <path d="M8 24h6M26 24h6" stroke="var(--brand-neumann-green)" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M17 10h6" stroke="var(--brand-neumann-green)" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }

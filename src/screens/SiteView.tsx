@@ -1,247 +1,255 @@
 import { useMemo, useState } from "react";
-import { MapPinOff, Plus, Search, Shuffle } from "lucide-react";
+import { ChevronRight, Lock, MapPin, MapPinOff, Plus, Search } from "lucide-react";
 import { useNav } from "../App";
-import { SITE_CEILING, elsewhere, iberoGrid, linesAt, linesInZone, site, sum, zoneStatus } from "../data/repository";
-import type { SiteCode, ZoneCell, ZoneStatus } from "../data/types";
-import { Chip, Code, PageHead, n } from "../ui/kit";
-
-const STATUS_LABEL: Record<ZoneStatus, string> = {
-  todo: "Not started",
-  active: "Being counted",
-  done: "Counted",
-  variance: "Has a variance",
-};
+import { ASSIGNMENT, bayCode, gridCode, iberoGrid, linesAt, readLocation, site, zoneWords } from "../data/repository";
+import { useStore } from "../data/store";
+import type { SiteCode, StackStatus, ZoneCell } from "../data/types";
+import { Chip, Code, PageHead, STATUS_LABEL, STATUS_TONE, Sheet, n } from "../ui/kit";
 
 export default function SiteView({ code }: { code: SiteCode }) {
   const go = useNav();
-  const s = site(code);
   const back = { label: "Count", onClick: () => go({ tab: "count", view: "home" }) };
-  if (!s.thirdParty) return <FloorMap back={back} />;
-  return <ThirdParty code={code} back={back} />;
+  return site(code).thirdParty ? <ThirdParty code={code} back={back} /> : <FloorMap back={back} />;
 }
+
+const RANK: StackStatus[] = ["todo", "done", "active", "variance"];
 
 function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
   const go = useNav();
+  const store = useStore();
   const cells = useMemo(iberoGrid, []);
+  const cellStatus = (c: ZoneCell): StackStatus => {
+    const st = c.zones.map((z) => store.stackStatus("IBR", z));
+    if (st.length && st.every((s) => s === "done")) return "done";
+    return st.reduce((a, s) => (RANK.indexOf(s) > RANK.indexOf(a) ? s : a), "todo" as StackStatus);
+  };
   const [sel, setSel] = useState<ZoneCell | undefined>(() => cells.find((c) => c.row === "D" && c.bay === 5));
-  const counts = cells.reduce(
-    (a, c) => (c.zones.length ? { ...a, [c.status]: (a[c.status] ?? 0) + 1 } : a),
-    {} as Record<string, number>,
-  );
+  const [jump, setJump] = useState("");
+  const loc = jump.trim() ? readLocation(jump) : null;
+  const jumpCell = loc && cells.find((c) => c.row === loc.row && c.bay === loc.bay);
 
   return (
-    <div className="page page-wide">
-      <PageHead
-        back={back}
-        title="Ibero Export Warehouse"
-        sub="Rows A to G, bays 1 to 14. Tap a bay to see its stacks."
-      />
+    <div className="page">
+      <PageHead back={back} title="Ibero Export Warehouse" sub="Rows A–G, bays 1–14. Your rows are outlined. Tap a bay to see its stacks." />
+
+      <form
+        className="panel"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (jumpCell) setSel(jumpCell);
+        }}
+      >
+        <label className="field-label" htmlFor="jump">
+          Go to a location
+        </label>
+        <div className="input-row">
+          <input
+            id="jump"
+            className="input input-code"
+            value={jump}
+            onChange={(e) => setJump(e.target.value)}
+            placeholder="D-05, D5 or D005"
+            autoComplete="off"
+          />
+          <button className="btn btn-primary" disabled={!jumpCell}>
+            Go
+          </button>
+        </div>
+        {jump.trim() && (
+          <p className={loc ? "hint" : "hint hint-bad"}>
+            {loc
+              ? `Row ${loc.row}, bay ${loc.bay}. Monthly sheets call it ${bayCode(loc.row, loc.bay)}; 100% count sheets call it ${gridCode(loc.row, loc.bay)}.${jumpCell && !jumpCell.zones.length ? " XBS has no stock here." : ""}`
+              : "Type a row letter A–G and a bay number 1–14, for example D5."}
+          </p>
+        )}
+      </form>
+
       <div className="legend" aria-label="Legend">
-        {(["done", "active", "variance", "todo"] as ZoneStatus[]).map((st) => (
+        {(["done", "active", "variance", "todo"] as StackStatus[]).map((st) => (
           <span key={st} className="legend-item">
-            <span className={`swatch s-${st}`} /> {STATUS_LABEL[st]} <span className="muted">{counts[st] ?? 0}</span>
+            <span className={`swatch s-${st}`} /> {STATUS_LABEL[st]}
           </span>
         ))}
       </div>
 
-      <div className="map-layout">
-        <div className="map-scroll">
-          <div className="floor" role="grid" aria-label="Warehouse floor map">
-            <div className="floor-corner" />
-            {Array.from({ length: 14 }, (_, i) => (
-              <div key={i} className="floor-bay">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-            ))}
-            {"ABCDEFG".split("").map((r) => (
-              <div className="floor-row" role="row" key={r}>
-                <div className="floor-rowlabel">{r}</div>
-                {cells
-                  .filter((c) => c.row === r)
-                  .map((c) => (
+      <div className="map-scroll">
+        <div className="floor" role="grid" aria-label="Warehouse floor map">
+          <div />
+          {Array.from({ length: 14 }, (_, i) => (
+            <div key={i} className="floor-bay">
+              {i + 1}
+            </div>
+          ))}
+          {"ABCDEFG".split("").map((r) => (
+            <div className="floor-row" role="row" key={r}>
+              <div className={"floor-rowlabel" + (ASSIGNMENT.rows.includes(r) ? " mine" : "")}>{r}</div>
+              {cells
+                .filter((c) => c.row === r)
+                .map((c) => {
+                  const st = c.zones.length ? cellStatus(c) : "empty";
+                  return (
                     <button
                       key={c.bay}
                       role="gridcell"
-                      className={`cell s-${c.zones.length ? c.status : "empty"}`}
+                      className={`cell s-${st}` + (ASSIGNMENT.rows.includes(r) ? " cell-mine" : "")}
                       aria-pressed={sel === c}
                       disabled={!c.zones.length}
-                      aria-label={`${r}-${String(c.bay).padStart(2, "0")}: ${c.zones.length} stacks, ${c.bags} bags, ${STATUS_LABEL[c.status]}`}
+                      aria-label={`${bayCode(r, c.bay)}: ${c.zones.length} stacks, ${c.bags} bags`}
                       onClick={() => setSel(c)}
-                    >
-                      {c.zones.length > 0 && <span className="cell-bags">{c.bags >= 1000 ? n(c.bags / 1000, 1) + "k" : c.bags}</span>}
-                    </button>
-                  ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <aside className="bay-panel" aria-live="polite">
-          {sel ? (
-            <>
-              <h2 className="h2">
-                Bay <span className="code">{sel.row}-{String(sel.bay).padStart(2, "0")}</span>
-              </h2>
-              <p className="muted">
-                {sel.zones.length} stacks · {n(sel.bags)} bags
-              </p>
-              <ul className="stack-list">
-                {sel.zones.map((z) => {
-                  const ls = linesInZone(z);
-                  const st = zoneStatus(z);
-                  return (
-                    <li key={z}>
-                      <button className="stack-row" onClick={() => go({ tab: "count", view: "zone", zone: z })}>
-                        <span className={`dot s-${st}`} aria-hidden />
-                        <Code>{z}</Code>
-                        <span className="stack-meta">
-                          {ls.length} outturn{ls.length === 1 ? "" : "s"} · {n(sum(ls, (l) => l.u))} units
-                        </span>
-                        <span className="stack-state">{STATUS_LABEL[st]}</span>
-                      </button>
-                    </li>
+                    />
                   );
                 })}
-              </ul>
-            </>
-          ) : (
-            <p className="muted">Select a bay on the map to see its stacks.</p>
-          )}
-        </aside>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {sel && (
+        <section className="panel" aria-live="polite">
+          <div className="row-between">
+            <h2 className="h3">
+              Bay <span className="code">{bayCode(sel.row, sel.bay)}</span>
+            </h2>
+            <span className="muted">
+              {sel.zones.length} stacks · {n(sel.bags)} bags
+            </span>
+          </div>
+          <ul className="list list-flush">
+            {sel.zones.map((z) => {
+              const st = store.stackStatus("IBR", z);
+              return (
+                <li key={z}>
+                  <button className="list-row" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}>
+                    <span className="list-main">
+                      <Code>{z}</Code>
+                      <span className="muted small">{zoneWords(z)}</span>
+                    </span>
+                    <Chip tone={STATUS_TONE[st]}>{STATUS_LABEL[st]}</Chip>
+                    <ChevronRight size={20} className="chev" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
 
-const DEMO_STACKS = [
-  { name: "Site 1 · Stack 1", note: "Left of gate, under the AGL banner", lots: 14, by: "Hassan J." },
-  { name: "Site 1 · Stack 2", note: "Behind weighbridge office", lots: 9, by: "Hassan J." },
-  { name: "Site 2 · Stack 1", note: "North wall, 3 tiers", lots: 21, by: "Irene K." },
-];
-
 function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onClick: () => void } }) {
+  const go = useNav();
+  const store = useStore();
   const s = site(code);
-  const all = linesAt(code).filter((l) => l.t === "W");
+  const lots = linesAt(code).filter((l) => l.t === "W");
+  const stacks = store.tpStacksAt(code);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "todo" | "counted" | "split">("all");
-  const total = sum(all, (l) => l.bg);
-  const countedIdx = (i: number) => code !== "AGL" || i % 2 === 0;
-
-  const rows = all
-    .map((l, i) => ({ l, counted: countedIdx(i), split: elsewhere(l).some((x) => x.wh !== code) }))
-    .filter(({ l, counted, split }) => {
-      if (filter === "todo" && counted) return false;
-      if (filter === "counted" && !counted) return false;
-      if (filter === "split" && !split) return false;
-      const t = q.trim().toUpperCase();
-      return !t || l.o.includes(t) || (l.g ?? "").includes(t) || l.i.includes(t);
-    });
+  const countedOutturns = new Set(store.counts.filter((c) => c.site === code).map((c) => c.outturn));
+  const shown = lots.filter((l) => {
+    const t = q.trim().toUpperCase();
+    return !t || l.o.includes(t) || (l.g ?? "").includes(t) || l.i.includes(t);
+  });
 
   return (
     <div className="page">
-      <PageHead
-        back={back}
-        title={s.name}
-        sub={`${n(all.length)} lots · ${n(total)} bags expected${total > SITE_CEILING ? ` · ${n(total - SITE_CEILING)} over the count-day ceiling` : ""}`}
-      />
+      <PageHead back={back} title={s.name} sub={`Third-party warehouse · ${n(lots.length)} lots · ${n(lots.reduce((a, l) => a + l.bg, 0))} bags in XBS`} />
 
       <div className="callout callout-warn">
-        <MapPinOff size={20} aria-hidden />
+        <MapPinOff size={22} aria-hidden />
         <div>
-          <strong>XBS has no stack locations for this site.</strong> Record each stack before you count it. Next
-          month's count will open with this map.
+          <strong>XBS has no stack locations here.</strong> Record each stack before you count it, with a landmark so the
+          next team can find it.
+        </div>
+      </div>
+      <div className="callout callout-info">
+        <Lock size={22} aria-hidden />
+        <div>
+          <strong>Pick lots from the XBS list.</strong> Typing outturns is switched off at third-party sites, so other
+          owners' coffee isn't counted by mistake.
         </div>
       </div>
 
       <section className="block">
-        <div className="block-head">
-          <h2 className="h2">Stacks recorded today</h2>
-          <button className="btn">
-            <Plus size={18} aria-hidden /> Add a stack
+        <div className="row-between">
+          <h2 className="h3">Stacks recorded</h2>
+          <button className="btn" onClick={() => setAdding(true)}>
+            <Plus size={20} aria-hidden /> Record a stack
           </button>
         </div>
-        <ul className="stack-cards">
-          {(code === "AGL" ? DEMO_STACKS : DEMO_STACKS.slice(0, 1)).map((st) => (
-            <li key={st.name} className="stack-card">
-              <div className="stack-card-name">{st.name}</div>
-              <div className="muted">{st.note}</div>
-              <div className="stack-card-foot">
-                {st.lots} lots · recorded by {st.by}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {stacks.length ? (
+          <ul className="list">
+            {stacks.map((st) => {
+              const es = store.entriesAt(code, st.name);
+              return (
+                <li key={st.name}>
+                  <button className="list-row" onClick={() => go({ tab: "count", view: "stack", site: code, stack: st.name })}>
+                    <MapPin size={22} aria-hidden className="list-icon" />
+                    <span className="list-main">
+                      <strong>{st.name}</strong>
+                      <span className="muted small">{st.note || "No landmark"}</span>
+                    </span>
+                    <span className="muted small">{es.length} lots</span>
+                    <ChevronRight size={20} className="chev" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="empty">No stacks recorded yet. Record the first one to start counting.</p>
+        )}
       </section>
 
       <section className="block">
-        <div className="block-head">
-          <h2 className="h2">Expected lots</h2>
-        </div>
-        <div className="toolbar">
-          <label className="search">
-            <Search size={18} aria-hidden />
-            <input
-              id="lot-search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Outturn, grower mark or grade"
-              aria-label="Search lots"
-            />
-          </label>
-          <div className="seg" role="group" aria-label="Filter lots">
-            {(
-              [
-                ["all", "All"],
-                ["todo", "Not counted"],
-                ["counted", "Counted"],
-                ["split", "Split lots"],
-              ] as const
-            ).map(([k, label]) => (
-              <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Outturn</th>
-                <th>Grade</th>
-                <th className="hide-sm">Grower mark</th>
-                <th className="num">Units</th>
-                <th className="num hide-sm">Days</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, 40).map(({ l, counted, split }) => (
-                <tr key={l.b}>
-                  <td>
-                    <Code>{l.o}</Code>
-                  </td>
-                  <td>{l.i}</td>
-                  <td className="hide-sm muted">{l.g ?? "—"}</td>
-                  <td className="num">{l.u}</td>
-                  <td className={"num hide-sm" + ((l.d ?? 0) > 21 ? " t-crit" : "")}>{l.d}</td>
-                  <td>
-                    <div className="cell-chips">
-                      {counted ? <Chip tone="ok">Counted</Chip> : <Chip>Not counted</Chip>}
-                      {split && (
-                        <Chip tone="jute">
-                          <Shuffle size={12} aria-hidden /> Split
-                        </Chip>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rows.length > 40 && <p className="muted small">Showing 40 of {n(rows.length)} lots. Search to narrow the list.</p>}
+        <h2 className="h3">Lots XBS expects here</h2>
+        <label className="search">
+          <Search size={20} aria-hidden />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Outturn, grower mark or grade" aria-label="Search lots" />
+        </label>
+        <ul className="list">
+          {shown.slice(0, 30).map((l) => (
+            <li key={l.b} className="list-row list-static">
+              <span className="list-main">
+                <Code>{l.o}</Code>
+                <span className="muted small">
+                  {l.i}
+                  {l.g ? ` · ${l.g}` : ""}
+                </span>
+              </span>
+              <span className="num">{l.u} units</span>
+              {countedOutturns.has(l.o) ? <Chip tone="ok">Counted</Chip> : <Chip>Not counted</Chip>}
+            </li>
+          ))}
+        </ul>
+        {shown.length > 30 && <p className="muted small">Showing 30 of {n(shown.length)}. Search to narrow the list.</p>}
       </section>
+
+      {adding && (
+        <Sheet title="Record a stack" onClose={() => setAdding(false)}>
+          <label className="field">
+            <span className="field-label">Stack name</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Site 2 · Stack 3" />
+          </label>
+          <label className="field">
+            <span className="field-label">Landmark</span>
+            <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Next to the north door" />
+          </label>
+          <button
+            className="btn btn-primary btn-xl"
+            disabled={!name.trim()}
+            onClick={() => {
+              store.addTpStack(code, { name: name.trim(), note: note.trim() });
+              setAdding(false);
+              go({ tab: "count", view: "stack", site: code, stack: name.trim() });
+            }}
+          >
+            Save and start counting
+          </button>
+        </Sheet>
+      )}
     </div>
   );
 }

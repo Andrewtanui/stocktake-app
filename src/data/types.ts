@@ -1,6 +1,7 @@
-// Shapes the UI works with. The mock repository fills them from the 2 Mar 2026
-// XBS snapshot; in the real app the same shapes come from Dataverse tables and
-// the XBS/Comtras extracts (see README, "Wiring real data").
+// Shapes the counter app works with. The mock repository fills them from the
+// 2 Mar 2026 XBS snapshot; in the real app the same shapes come from the
+// SharePoint lists / Dataverse staging tables behind the Stock Take app
+// (see README, "Wiring real data").
 
 export type SiteCode = "IBR" | "AGL" | "KPCU" | "MAXA" | "MCF" | "KCCE";
 
@@ -36,63 +37,97 @@ export interface Site {
   code: SiteCode;
   name: string;
   short: string;
+  /** NKG_config IsThirdPartyLocation: no XBS stack locations, manual outturn entry switched off. */
   thirdParty: boolean;
+  manualEntry: boolean;
 }
 
-export type ZoneStatus = "todo" | "active" | "done" | "variance";
+/** Settings-table row: one packing type, shared with XBS so both calculate weight the same way. */
+export interface PackType {
+  id: "JUTE60" | "JUTE50";
+  label: string;
+  kg: number;
+  hint: string;
+}
+
+/** Stock categories from the discovery session (BRD §5.1). */
+export type StockCategory =
+  | "Current stock"
+  | "Processing stock"
+  | "Work in progress"
+  | "Sweepings"
+  | "Loose bags"
+  | "Disputed stock"
+  | "Direct purchase (not in XBS)"
+  | "Ex-office stock";
+
+/** Reasons a counter can give for a variance. Supervisors refine these later. */
+export type VarianceReason =
+  | "Part of the lot is at another location"
+  | "Bags moved here, not yet received in XBS"
+  | "Bags left this stack, not yet posted out"
+  | "Torn or re-bagged bags"
+  | "Pocket weighed differently"
+  | "Tag missing or unreadable"
+  | "Stack blocked, couldn't reach every bag"
+  | "Not sure, supervisor to check";
+
+export type StackStatus = "todo" | "active" | "done" | "variance";
 
 export interface ZoneCell {
   row: string; // A–G
   bay: number; // 1–14
   zones: string[];
-  status: ZoneStatus;
   bags: number;
 }
 
-export type LineStatus = "todo" | "match" | "variance" | "recount";
+export type StockTakeType = "Monthly stock take" | "100% stock take";
 
-export type RootCause =
-  | "Duplicate entry"
-  | "Unposted gate-out"
-  | "Unposted delivery"
-  | "Outturn mismatch"
-  | "Part lot"
-  | "Cancelled contract"
-  | "Not yet known";
-
-export interface Variance {
-  id: string;
-  site: SiteCode;
-  zone: string;
-  outturn: string;
-  grade: string;
-  expected: number; // units
-  counted: number; // units
-  cause: RootCause;
-  why: string; // the evidence the suggestion is based on
-  counter: string;
-  at: string; // time submitted
-  state: "open" | "recount" | "accepted" | "ticket";
-  ageHours: number;
-}
-
-export interface Check {
+export interface StockTake {
   id: string;
   title: string;
-  detail: string;
-  severity: "high" | "medium" | "low";
-  owner: string;
-  count: number;
-  bags: number;
-  unit: string;
-  rows: { ref: string; where: string; info: string; bags: number }[];
+  type: StockTakeType;
+  countDate: string;
+  snapshot: string;
+  sites: SiteCode[];
 }
 
-export interface Counter {
-  name: string;
+export interface Assignment {
   site: SiteCode;
-  area: string;
-  bagsSoFar: number;
-  startedAt: number; // hour
-  recounts: number;
+  /** Ibero rows, e.g. ["D", "E"]; empty for whole-site assignments at third parties. */
+  rows: string[];
+  label: string;
+}
+
+/** A recount asked for by the supervisor when a count sheet was rejected or a variance needs checking. */
+export interface RecountTask {
+  id: string;
+  site: SiteCode;
+  stack: string;
+  batch: string;
+  outturn: string;
+  askedBy: string;
+  at: string;
+  why: string;
+}
+
+export type IssueCategory =
+  | "App not working"
+  | "Network or saving"
+  | "Lot not on the list"
+  | "Tag missing or unreadable"
+  | "Stack blocked or unsafe"
+  | "Third-party staff not available"
+  | "Other";
+
+export interface Issue {
+  id: string;
+  category: IssueCategory;
+  site: SiteCode;
+  screen: string;
+  text: string;
+  by: string;
+  at: string;
+  status: "Open" | "In progress" | "Resolved";
+  resolution?: string;
 }

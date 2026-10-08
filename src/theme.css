@@ -16,7 +16,7 @@
   --surface-subtle: color-mix(in srgb, var(--brand-black) 4%, var(--brand-white));
   --text: var(--brand-black);
   --text-on-dark: var(--brand-white);
-  --text-muted: var(--brand-black);
+  --text-muted: color-mix(in srgb, var(--brand-black) 64%, var(--brand-white));
   --border: color-mix(in srgb, var(--brand-black) 18%, var(--brand-white));
   --action: var(--brand-neumann-green);
   --action-text: var(--brand-white);

@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { ChevronLeft } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+import { ChevronLeft, Minus, Plus, X } from "lucide-react";
+import type { StackStatus } from "../data/types";
 
 export const n = (x: number, d = 0) =>
   x.toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -21,7 +22,7 @@ export function PageHead({
     <header className="page-head">
       {back && (
         <button className="back" onClick={back.onClick}>
-          <ChevronLeft size={18} aria-hidden /> {back.label}
+          <ChevronLeft size={22} aria-hidden /> {back.label}
         </button>
       )}
       <div className="page-head-row">
@@ -35,25 +36,76 @@ export function PageHead({
   );
 }
 
-export type Tone = "ok" | "warn" | "crit" | "info" | "neutral" | "jute";
+export type Tone = "ok" | "warn" | "crit" | "info" | "neutral";
 export function Chip({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return <span className={`chip chip-${tone}`}>{children}</span>;
 }
 
-export function Progress({ value, max, tone = "ok", marker }: { value: number; max: number; tone?: Tone; marker?: number }) {
+export const STATUS_LABEL: Record<StackStatus, string> = {
+  todo: "Not started",
+  active: "Being counted",
+  done: "Submitted",
+  variance: "Has a variance",
+};
+export const STATUS_TONE: Record<StackStatus, Tone> = { todo: "neutral", active: "info", done: "ok", variance: "crit" };
+
+export function Progress({ value, max, tone = "ok" }: { value: number; max: number; tone?: Tone }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
   return (
     <div className="progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
       <div className={`progress-fill fill-${tone}`} style={{ width: pct + "%" }} />
-      {marker !== undefined && max > 0 && (
-        <div className="progress-marker" style={{ left: Math.min(100, (marker / max) * 100) + "%" }} />
-      )}
     </div>
   );
 }
 
 export function Code({ children }: { children: ReactNode }) {
   return <span className="code">{children}</span>;
+}
+
+/** Big minus / number / plus control for counting with gloves on. */
+export function Stepper({
+  id,
+  label,
+  value,
+  onChange,
+  step = 1,
+  decimal,
+  suffix,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  decimal?: boolean;
+  suffix?: string;
+}) {
+  const parse = (s: string) => Math.max(0, (decimal ? parseFloat(s) : parseInt(s, 10)) || 0);
+  return (
+    <div className="stepper-field">
+      <label className="field-label" htmlFor={id}>
+        {label}
+      </label>
+      <div className="stepper">
+        <button type="button" className="step" aria-label={`${label}: one less`} onClick={() => onChange(Math.max(0, value - step))}>
+          <Minus size={26} aria-hidden />
+        </button>
+        <div className="step-value">
+          <input
+            id={id}
+            inputMode={decimal ? "decimal" : "numeric"}
+            value={value}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onChange(parse(e.target.value))}
+          />
+          {suffix && <span className="step-suffix">{suffix}</span>}
+        </div>
+        <button type="button" className="step step-plus" aria-label={`${label}: one more`} onClick={() => onChange(value + step)}>
+          <Plus size={26} aria-hidden />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -65,16 +117,14 @@ export function BagTiers({ expected, counted, max = 120 }: { expected: number; c
   const shown = Math.min(total, max);
   const tiers: number[][] = [];
   for (let i = 0; i < shown; i += 10) tiers.push(Array.from({ length: Math.min(10, shown - i) }, (_, k) => i + k));
+  if (!tiers.length) return null;
   return (
     <div className="tiers" aria-label={`${counted} of ${expected} units counted`}>
       {tiers.map((t, ti) => (
         <div className="tier" key={ti}>
           <span className="tier-no">{ti * 10 + 1}</span>
           {t.map((i) => (
-            <span
-              key={i}
-              className={"bag " + (i < counted ? (i < expected ? "bag-in" : "bag-over") : "bag-out")}
-            />
+            <span key={i} className={"bag " + (i < counted ? (i < expected ? "bag-in" : "bag-over") : "bag-out")} />
           ))}
         </div>
       ))}
@@ -83,12 +133,33 @@ export function BagTiers({ expected, counted, max = 120 }: { expected: number; c
   );
 }
 
-export function Stat({ label, value, note, tone }: { label: string; value: ReactNode; note?: ReactNode; tone?: Tone }) {
+export function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: Tone }) {
   return (
     <div className="stat">
       <div className="stat-label">{label}</div>
       <div className={"stat-value" + (tone ? ` t-${tone}` : "")}>{value}</div>
-      {note && <div className="stat-note">{note}</div>}
+    </div>
+  );
+}
+
+/** Bottom sheet for short confirmations (submit a stack, record a stack). */
+export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head">
+          <h2 className="h3">{title}</h2>
+          <button className="icon-btn" aria-label="Close" onClick={onClose}>
+            <X size={22} aria-hidden />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
