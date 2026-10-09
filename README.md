@@ -103,3 +103,20 @@ To go live, swap each for generated Power Apps data services:
 - sites, `IsThirdPartyLocation`, manual-entry switch, pack types → `NKG_config`
 - counts, stack submissions, recounts → the Count Sheets / Stock Takes lists
 - problem reports → a complaints list read by the Stock Management app
+
+## Brand
+
+Follows the NKG Brand Book "Uniting Contrasts" (v1.0, 2022). Tokens live in
+`src/theme.css`, identical in both apps.
+
+- **Colours:** the seven brand colours only. FRESH (Neumann green, fresh green,
+  turquoise) for facts and numbers, WARM (yellow, magenta, orange, Neumann red)
+  for people and alerts. Text is black or white.
+- **Brand bar:** the FRESH gradient (turquoise → green) under the header.
+- **Logo:** the official negative "NKG East Africa" lockup (`public/brand/nkg-mark.svg`,
+  unmodified) on a Neumann green header, as the brand book allows for dark
+  surfaces, followed by the app name.
+- **Type:** Bricolage Grotesque (free, SIL Open Font License), bundled via
+  `@fontsource-variable/bricolage-grotesque`, stands in for the licensed Aptifer Sans LT Pro: a
+  characterful grotesque with lining figures and a 200–800 weight range. Headlines pair a BLACK statement
+  with a light line.

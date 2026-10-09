@@ -1,9 +1,9 @@
-import { ChevronRight, Map, RotateCcw, ScanLine, Users } from "lucide-react";
+import { ArrowRight, Map, RotateCcw, Users, Warehouse } from "lucide-react";
 import { useNav } from "../App";
 import { ASSIGNMENT, SITES, STOCK_TAKE, TEAMMATE, expectedLots, linesAt, zoneWords, zonesInRows } from "../data/repository";
 import { useStore } from "../data/store";
 import { useWho } from "../PowerProvider";
-import { Chip, Code, Progress, STATUS_LABEL, STATUS_TONE, n } from "../ui/kit";
+import { Code, Ring, Row, Section, StatusIcon, n } from "../ui/kit";
 
 export default function Home() {
   const go = useNav();
@@ -13,113 +13,107 @@ export default function Home() {
   const mine = zonesInRows(ASSIGNMENT.rows);
   const status = mine.map((z) => ({ z, s: store.stackStatus("IBR", z) }));
   const submitted = status.filter((x) => x.s === "done" || x.s === "variance").length;
-  const sentBack = mine.filter((z) => store.stackState("IBR", z)?.state === "rejected");
   const next = status.find((x) => x.s === "active" || x.s === "todo")?.z ?? mine[0];
   const nextLots = expectedLots("IBR", next);
   const teammateHere = store.entriesAt("IBR", next).some((e) => e.by !== store.me);
-  const upNext = status.filter((x) => x.s === "active" || x.s === "todo").slice(1, 6);
+  const upNext = status.filter((x) => (x.s === "active" || x.s === "todo") && x.z !== next).slice(0, 4);
   const recounts = store.recountsOpen();
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1 className="h1">Morning, {who.name.split(" ")[0]}</h1>
-        <p className="sub">
-          {STOCK_TAKE.type} · you're counting <strong>{ASSIGNMENT.label}</strong>
-        </p>
+      <header className="greeting">
+        <p className="eyebrow">{STOCK_TAKE.countDate}</p>
+        <h1 className="title">Good morning, {who.name.split(" ")[0]}</h1>
+        <p className="subtitle">Ibero Export Warehouse · rows D and E</p>
       </header>
 
-      {(recounts.length > 0 || sentBack.length > 0) && (
-        <button className="alert-card" onClick={() => go({ tab: "recounts" })}>
-          <RotateCcw size={24} aria-hidden />
-          <span>
-            <strong>
-              Your supervisor asked for {recounts.length} recount{recounts.length === 1 ? "" : "s"}
-            </strong>
-            <span className="alert-sub">Do these before your next stack.</span>
+      {recounts.length > 0 && (
+        <button className="notice notice-warn notice-btn" onClick={() => go({ tab: "recounts" })}>
+          <span className="notice-icon">
+            <RotateCcw size={18} aria-hidden />
           </span>
-          <ChevronRight size={22} aria-hidden />
+          <span className="notice-body">
+            <strong className="notice-title">
+              {recounts.length} recount{recounts.length === 1 ? "" : "s"} from your supervisor
+            </strong>
+            <span className="notice-text">Do these before your next stack</span>
+          </span>
+          <ArrowRight size={18} aria-hidden />
         </button>
       )}
 
-      <section className="next-card" aria-labelledby="next-h">
-        <h2 id="next-h" className="next-label">
-          Next stack
-        </h2>
-        <div className="next-zone code">{next}</div>
-        <p className="next-where">{zoneWords(next)}</p>
-        <p className="next-meta">
-          {nextLots.length} lots · {n(nextLots.reduce((a, l) => a + l.units, 0))} units expected
+      <section className="hero" aria-labelledby="next-h">
+        <div className="hero-top">
+          <div>
+            <h2 id="next-h" className="hero-eyebrow">
+              Next stack
+            </h2>
+            <div className="hero-code code">{next}</div>
+            <p className="hero-meta">{zoneWords(next)}</p>
+          </div>
+          <Ring value={submitted} max={mine.length} light />
+        </div>
+        <p className="hero-facts">
+          <span>
+            <strong>{nextLots.length}</strong> lots
+          </span>
+          <span>
+            <strong>{n(nextLots.reduce((a, l) => a + l.units, 0))}</strong> units expected
+          </span>
         </p>
         {teammateHere && (
-          <p className="next-team">
-            <Users size={18} aria-hidden /> {TEAMMATE} has started this stack. Count the lots they haven't done.
+          <p className="hero-team">
+            <Users size={16} aria-hidden /> {TEAMMATE} started this stack
           </p>
         )}
-        <button className="btn btn-primary btn-xl" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: next })}>
-          <ScanLine size={22} aria-hidden /> Count {next}
+        <button className="btn btn-light btn-lg btn-block" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: next })}>
+          Start counting
+          <ArrowRight size={20} aria-hidden />
         </button>
       </section>
 
-      <section className="panel" aria-labelledby="prog-h">
-        <div className="row-between">
-          <h2 id="prog-h" className="h3">
-            Your progress
-          </h2>
-          <span className="big-num">
-            {submitted}
-            <span className="muted"> of {mine.length} stacks</span>
-          </span>
-        </div>
-        <Progress value={submitted} max={mine.length} />
-        <button className="btn btn-block" onClick={() => go({ tab: "count", view: "site", site: "IBR" })}>
-          <Map size={20} aria-hidden /> Open the floor map
-        </button>
-      </section>
+      <Section
+        title="Up next"
+        action={
+          <button className="text-btn" onClick={() => go({ tab: "count", view: "site", site: "IBR" })}>
+            <Map size={16} aria-hidden /> Floor map
+          </button>
+        }
+      >
+        {upNext.map(({ z, s }) => (
+          <Row
+            key={z}
+            lead={<StatusIcon s={s} />}
+            title={<Code>{z}</Code>}
+            sub={zoneWords(z)}
+            trail={<span className="muted">{expectedLots("IBR", z).length} lots</span>}
+            onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}
+          />
+        ))}
+      </Section>
 
-      <section className="block" aria-labelledby="up-h">
-        <h2 id="up-h" className="h3">
-          After that
-        </h2>
-        <ul className="list">
-          {upNext.map(({ z, s }) => (
-            <li key={z}>
-              <button className="list-row" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}>
-                <span className="list-main">
-                  <Code>{z}</Code>
-                  <span className="muted small">{zoneWords(z)}</span>
+      <Section title="Third-party sites">
+        {SITES.filter((s) => s.thirdParty).map((s) => {
+          const lots = linesAt(s.code).filter((l) => l.t === "W");
+          return (
+            <Row
+              key={s.code}
+              lead={
+                <span className="avatar-icon">
+                  <Warehouse size={18} aria-hidden />
                 </span>
-                <Chip tone={STATUS_TONE[s]}>{STATUS_LABEL[s]}</Chip>
-                <ChevronRight size={20} className="chev" aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+              }
+              title={s.name}
+              sub={`${n(lots.length)} lots · ${n(lots.reduce((a, l) => a + l.bg, 0))} bags`}
+              onClick={() => go({ tab: "count", view: "site", site: s.code })}
+            />
+          );
+        })}
+      </Section>
 
-      <section className="block" aria-labelledby="sites-h">
-        <h2 id="sites-h" className="h3">
-          Counting somewhere else today?
-        </h2>
-        <ul className="list">
-          {SITES.filter((s) => s.code !== "IBR").map((s) => {
-            const lots = linesAt(s.code).filter((l) => l.t === "W");
-            return (
-              <li key={s.code}>
-                <button className="list-row" onClick={() => go({ tab: "count", view: "site", site: s.code })}>
-                  <span className="list-main">
-                    <strong>{s.name}</strong>
-                    <span className="muted small">
-                      Third party · {n(lots.length)} lots · {n(lots.reduce((a, l) => a + l.bg, 0))} bags
-                    </span>
-                  </span>
-                  <ChevronRight size={20} className="chev" aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      <p className="footnote">
+        Design preview · expected stock from the {STOCK_TAKE.snapshot} · counts stay in this tab. Tap “Online” to try offline mode.
+      </p>
     </div>
   );
 }

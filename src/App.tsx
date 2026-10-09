@@ -1,6 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import { ClipboardList, Cloud, CloudOff, MessageSquareWarning, RotateCcw, ScanLine } from "lucide-react";
-import { STOCK_TAKE } from "./data/repository";
+import { ClipboardList, MessageSquareWarning, RotateCcw, ScanLine } from "lucide-react";
 import { useStore } from "./data/store";
 import type { SiteCode } from "./data/types";
 import Home from "./screens/Home";
@@ -12,6 +11,7 @@ import OtherStock from "./screens/OtherStock";
 import MyCounts from "./screens/MyCounts";
 import Recounts from "./screens/Recounts";
 import Report from "./screens/Report";
+import { Logo } from "./ui/Logo";
 
 export type Tab = "count" | "counts" | "recounts" | "report";
 export type Route =
@@ -66,7 +66,7 @@ export default function App() {
     { id: "count" as const, label: "Count", icon: ScanLine, badge: 0 },
     { id: "counts" as const, label: "My counts", icon: ClipboardList, badge: store.pending },
     { id: "recounts" as const, label: "Recounts", icon: RotateCcw, badge: recounts },
-    { id: "report" as const, label: "Report a problem", icon: MessageSquareWarning, badge: 0 },
+    { id: "report" as const, label: "Report", icon: MessageSquareWarning, badge: 0 },
   ];
 
   return (
@@ -74,32 +74,21 @@ export default function App() {
       <div className="app">
         <header className="appbar">
           <div className="appbar-inner">
-            <BagMark />
-            <div className="appbar-title">
-              <div className="appbar-name">Stock Take</div>
-              <div className="appbar-sub">{STOCK_TAKE.title}</div>
-            </div>
+            <Logo sub="Stock Take" />
             <button
               className={"sync" + (store.online ? "" : " sync-off")}
               onClick={() => store.setOnline(!store.online)}
               title="Demo: tap to switch between online and offline"
-              aria-label={store.online ? "Online, all counts sent" : `Offline, ${store.pending} counts saved on this phone`}
+              aria-label={store.online ? "Online, all counts sent. Tap to simulate offline." : `Offline, ${store.pending} counts saved on this phone`}
             >
-              {store.online ? <Cloud size={18} aria-hidden /> : <CloudOff size={18} aria-hidden />}
-              <span>
-{store.online ? "Online" : `Offline · ${store.pending}`}
-              </span>
+              <span className="sync-dot" aria-hidden />
+              {store.online ? "Online" : `Offline · ${store.pending}`}
             </button>
           </div>
+          <div className="brand-bar" aria-hidden />
         </header>
 
-        <main className="main">
-          <p className="demo-note" role="note">
-            Design preview of the counter app. Counts are kept in this browser tab only. Expected stock is from the{" "}
-            {STOCK_TAKE.snapshot}. Tap the cloud to try offline mode.
-          </p>
-          {screen}
-        </main>
+        <main className="main">{screen}</main>
 
         {store.toast && (
           <div className="toast" role="status">
@@ -116,7 +105,7 @@ export default function App() {
               onClick={() => go(t.id === "count" ? { tab: "count", view: "home" } : { tab: t.id })}
             >
               <span className="tab-icon">
-                <t.icon size={24} strokeWidth={1.9} aria-hidden />
+                <t.icon size={22} strokeWidth={2} aria-hidden />
                 {t.badge > 0 && <span className="badge">{t.badge}</span>}
               </span>
               <span className="tab-label">{t.label}</span>
@@ -125,18 +114,5 @@ export default function App() {
         </nav>
       </div>
     </Nav.Provider>
-  );
-}
-
-/** A stacked-bag mark: three jute bags in a tier. */
-function BagMark() {
-  return (
-    <svg className="mark" viewBox="0 0 40 40" aria-hidden>
-      <rect x="4" y="21" width="14" height="13" rx="4" fill="var(--brand-fresh-green)" />
-      <rect x="22" y="21" width="14" height="13" rx="4" fill="var(--brand-fresh-green)" />
-      <rect x="13" y="7" width="14" height="13" rx="4" fill="var(--brand-white)" />
-      <path d="M8 24h6M26 24h6" stroke="var(--brand-neumann-green)" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M17 10h6" stroke="var(--brand-neumann-green)" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
   );
 }

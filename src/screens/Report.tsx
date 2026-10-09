@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Camera, Send } from "lucide-react";
+import { Camera } from "lucide-react";
 import { SITES, site } from "../data/repository";
 import { useStore } from "../data/store";
 import type { IssueCategory, SiteCode } from "../data/types";
-import { Chip, PageHead, type Tone } from "../ui/kit";
+import { PageHead, Pill, Section, type Tone } from "../ui/kit";
 
 const CATS: IssueCategory[] = [
   "App not working",
@@ -20,81 +20,71 @@ export default function Report({ lastScreen }: { lastScreen: string }) {
   const store = useStore();
   const [cat, setCat] = useState<IssueCategory | null>(null);
   const [where, setWhere] = useState<SiteCode>("IBR");
-  const [screen, setScreen] = useState(lastScreen);
   const [text, setText] = useState("");
   const mine = store.issues.filter((i) => i.by === store.me);
 
   return (
     <div className="page">
-      <PageHead title="Report a problem" sub="Tell the stock take lead about anything slowing the count: the app, the network, the site or the stock." />
+      <PageHead title="Report a problem" sub="Anything slowing the count — the app, the network, the site or the stock." />
 
-      <section className="panel">
-        <span className="field-label">What's the problem?</span>
-        <div className="choice-list">
-          {CATS.map((c) => (
-            <button key={c} type="button" className="choice" aria-pressed={cat === c} onClick={() => setCat(c)}>
-              <strong>{c}</strong>
-            </button>
-          ))}
-        </div>
-        <div className="grid-2">
-          <label className="field">
-            <span className="field-label">Where</span>
-            <select className="input" value={where} onChange={(e) => setWhere(e.target.value as SiteCode)}>
-              {SITES.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span className="field-label">Screen</span>
-            <input className="input" value={screen} onChange={(e) => setScreen(e.target.value)} />
-          </label>
+      <section className="card">
+        <div className="field">
+          <span className="label">What's wrong?</span>
+          <div className="choice-grid">
+            {CATS.map((c) => (
+              <button key={c} type="button" className="choice" aria-pressed={cat === c} onClick={() => setCat(c)}>
+                {c}
+              </button>
+            ))}
+          </div>
         </div>
         <label className="field">
-          <span className="field-label">What happened?</span>
+          <span className="label">Where</span>
+          <select className="input" value={where} onChange={(e) => setWhere(e.target.value as SiteCode)}>
+            {SITES.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span className="label">What happened?</span>
           <textarea className="input" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. App froze when I saved 12KN0015 at A-03-2" />
         </label>
-        <button type="button" className="btn btn-quiet">
-          <Camera size={20} aria-hidden /> Add a photo or screenshot
-        </button>
-        <button
-          className="btn btn-primary btn-xl"
-          disabled={!cat || !text.trim()}
-          onClick={() => {
-            store.addIssue({ category: cat!, site: where, screen, text: text.trim() });
-            setCat(null);
-            setText("");
-          }}
-        >
-          <Send size={20} aria-hidden /> Send
-        </button>
+        <div className="btn-pair">
+          <button type="button" className="btn btn-soft">
+            <Camera size={18} aria-hidden /> Photo
+          </button>
+          <button
+            className="btn btn-primary btn-grow"
+            disabled={!cat || !text.trim()}
+            onClick={() => {
+              store.addIssue({ category: cat!, site: where, screen: lastScreen, text: text.trim() });
+              setCat(null);
+              setText("");
+            }}
+          >
+            Send report
+          </button>
+        </div>
       </section>
 
-      <section className="block">
-        <h2 className="h3">Your reports</h2>
-        <ul className="cards">
-          {mine.map((i) => (
-            <li key={i.id} className="card">
-              <div className="row-between">
-                <strong>{i.category}</strong>
-                <Chip tone={STATUS_TONE[i.status]}>{i.status}</Chip>
-              </div>
-              <p className="muted small">
-                {i.id} · {site(i.site).short} · {i.screen} · {i.at}
-              </p>
-              <p>{i.text}</p>
-              {i.resolution && (
-                <p className="resolution">
-                  <strong>Reply:</strong> {i.resolution}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Section title="Your reports">
+        {mine.map((i) => (
+          <div key={i.id} className="row row-stack">
+            <div className="row-line">
+              <span className="row-title">{i.category}</span>
+              <Pill tone={STATUS_TONE[i.status]}>{i.status}</Pill>
+            </div>
+            <span className="row-text">{i.text}</span>
+            {i.resolution && <span className="reply">{i.resolution}</span>}
+            <span className="row-sub">
+              {site(i.site).short} · {i.screen} · {i.at}
+            </span>
+          </div>
+        ))}
+      </Section>
     </div>
   );
 }
