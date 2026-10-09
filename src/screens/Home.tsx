@@ -1,6 +1,6 @@
 import { ArrowRight, Map, RotateCcw, Users, Warehouse } from "lucide-react";
 import { useNav } from "../App";
-import { ASSIGNMENT, SITES, STOCK_TAKE, TEAMMATE, expectedLots, linesAt, zoneWords, zonesInRows } from "../data/repository";
+import { ASSIGNMENT, SITES, STOCK_TAKE, expectedLots, linesAt, zoneWords, zonesInRows } from "../data/repository";
 import { useStore } from "../data/store";
 import { useWho } from "../PowerProvider";
 import { Code, Ring, Row, Section, StatusIcon, n } from "../ui/kit";
@@ -15,7 +15,7 @@ export default function Home() {
   const submitted = status.filter((x) => x.s === "done" || x.s === "variance").length;
   const next = status.find((x) => x.s === "active" || x.s === "todo")?.z ?? mine[0];
   const nextLots = expectedLots("IBR", next);
-  const teammateHere = store.entriesAt("IBR", next).some((e) => e.by !== store.me);
+  const teammate = store.entriesAt("IBR", next).find((e) => e.by !== store.me)?.by;
   const upNext = status.filter((x) => (x.s === "active" || x.s === "todo") && x.z !== next).slice(0, 4);
   const recounts = store.recountsOpen();
 
@@ -61,9 +61,9 @@ export default function Home() {
             <strong>{n(nextLots.reduce((a, l) => a + l.units, 0))}</strong> units expected
           </span>
         </p>
-        {teammateHere && (
+        {teammate && (
           <p className="hero-team">
-            <Users size={16} aria-hidden /> {TEAMMATE} started this stack
+            <Users size={16} aria-hidden /> {teammate} started this stack
           </p>
         )}
         <button className="btn btn-light btn-lg btn-block" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: next })}>
@@ -112,7 +112,9 @@ export default function Home() {
       </Section>
 
       <p className="footnote">
-        Design preview · expected stock from the {STOCK_TAKE.snapshot} · counts stay in this tab. Tap “Online” to try offline mode.
+        {store.source === "mock"
+          ? `Design preview · expected stock from the ${STOCK_TAKE.snapshot} · counts stay in this tab. Tap “Online” to try offline mode.`
+          : `Expected stock from the ${STOCK_TAKE.snapshot} · counts are saved to Dataverse.`}
       </p>
     </div>
   );

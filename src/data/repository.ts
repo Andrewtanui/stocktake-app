@@ -1,14 +1,12 @@
-// Mock data layer for the counter app. Every function here is what a screen
-// calls; in the real app each one is swapped for a call to a generated Power
-// Apps data service (the NKG_config and count-sheet SharePoint lists, and the
-// XBS import staged in Dataverse). Screens never read the JSON directly.
+// Reference data for the counter app, and the lookups screens use. The data
+// itself is loaded once at start-up by the active data source (mock or
+// Dataverse, see ./source) and handed to setReference(); screens never read
+// the JSON or call Dataverse directly.
 
-import raw from "./xbs-2026-03-02.json";
+import { defaultPackCode } from "../shared/count-rules";
 import type {
   Assignment,
-  Issue,
   PackType,
-  RecountTask,
   Site,
   SiteCode,
   StockCategory,
@@ -18,25 +16,29 @@ import type {
   ZoneCell,
 } from "./types";
 
-const lines = raw as XbsLine[];
+export interface Reference {
+  stockTake: StockTake;
+  sites: Site[];
+  packTypes: PackType[];
+  lines: XbsLine[];
+  assignment: Assignment;
+}
 
-export const STOCK_TAKE: StockTake = {
-  id: "ST-2026-03",
-  title: "Monthly Stock Take - 02/03/2026",
-  type: "Monthly stock take",
-  countDate: "Mon 2 Mar 2026",
-  snapshot: "XBS stock imported 2 Mar 2026, 08:52",
-  sites: ["IBR", "AGL", "KPCU", "MAXA", "MCF", "KCCE"],
-};
+// Live ES-module bindings: importers see the values set by setReference().
+let lines: XbsLine[] = [];
+export let STOCK_TAKE: StockTake;
+export let SITES: Site[] = [];
+export let PACK_TYPES: PackType[] = [];
+export let ASSIGNMENT: Assignment;
 
-export const SITES: Site[] = [
-  { code: "IBR", name: "Ibero Export Warehouse", short: "Ibero", thirdParty: false, manualEntry: true },
-  { code: "AGL", name: "AGL", short: "AGL", thirdParty: true, manualEntry: false },
-  { code: "KPCU", name: "New KPCU", short: "New KPCU", thirdParty: true, manualEntry: false },
-  { code: "MAXA", name: "Maxa Africa Logistics", short: "Maxa", thirdParty: true, manualEntry: false },
-  { code: "MCF", name: "Mitchel Cotts Freight", short: "Mitchel Cotts", thirdParty: true, manualEntry: false },
-  { code: "KCCE", name: "Kenya Co-op Coffee Exporters", short: "KCCE", thirdParty: true, manualEntry: false },
-];
+export function setReference(r: Reference) {
+  lines = r.lines;
+  STOCK_TAKE = r.stockTake;
+  SITES = r.sites;
+  PACK_TYPES = r.packTypes;
+  ASSIGNMENT = r.assignment;
+}
+
 export const site = (c: SiteCode) => SITES.find((s) => s.code === c)!;
 
 export const allLines = () => lines;
@@ -48,13 +50,10 @@ export const sum = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a +
 
 /* ---------- settings: packing types (one table, shared with XBS) ---------- */
 
-export const PACK_TYPES: PackType[] = [
-  { id: "JUTE60", label: "60 kg jute bag", kg: 60, hint: "Standard coffee" },
-  { id: "JUTE50", label: "50 kg jute bag", kg: 50, hint: "Light coffee fills a bag at 50 kg" },
-];
-export const pack = (id: PackType["id"]) => PACK_TYPES.find((p) => p.id === id)!;
+export const pack = (id: string) => PACK_TYPES.find((p) => p.id === id) ?? PACK_TYPES[0];
 /** Light grades are bagged at 50 kg; XBS weights confirm it (LIGHTS = bags × 50 + pockets). */
-export const defaultPack = (grade: string): PackType["id"] => (/LIGHT/i.test(grade) ? "JUTE50" : "JUTE60");
+export const defaultPack = (grade: string) =>
+  defaultPackCode(grade, PACK_TYPES.map((p) => ({ code: p.id, kg: p.kg, gradePattern: p.gradePattern })));
 
 export const CATEGORIES: StockCategory[] = [
   "Current stock",
@@ -183,71 +182,3 @@ export function closestOutturn(typed: string, candidates: string[]) {
   const best = [...candidates].sort((a, b) => dist(typed, a) - dist(typed, b))[0];
   return best && dist(typed, best) <= 3 ? best : null;
 }
-
-/* ---------- the signed-in counter (sample names for the demo) ---------- */
-
-export const ASSIGNMENT: Assignment = { site: "IBR", rows: ["D", "E"], label: "Ibero rows D and E" };
-export const TEAMMATE = "Brian K.";
-
-/**
- * Scripted state so the demo opens mid-morning: rows D bays 1–4 counted and
- * submitted, D-04-3 sent back by the supervisor, and a teammate already
- * part-way through D-05-1.
- */
-export const DEMO = {
-  now: "11:40",
-  submittedBays: 4,
-  rejected: { stack: "D-04-3", by: "Peter M. (Supervisor)", at: "10:58", comment: "16EC0009 is 2 units short and XBS also has it at KCCE. Please recount." },
-  approvedUpTo: 3,
-  short: { stack: "D-04-3", batch: "2025/2026-18-6517-KINJO/XBB.004F02", units: 29 },
-  /** Brian K. already counted this lot here: opening it shows the duplicate-count prompt. */
-  teammateCount: { stack: "D-05-1", batch: "KCS7342-CLEAN 1", units: 52, bags: 51, pocketBags: 1, pocketKg: 20, at: "10:52" },
-};
-
-export const RECOUNTS: RecountTask[] = [
-  {
-    id: "R-031",
-    site: "IBR",
-    stack: "D-04-3",
-    batch: "2025/2026-18-6517-KINJO/XBB.004F02",
-    outturn: "16EC0009",
-    askedBy: DEMO.rejected.by,
-    at: DEMO.rejected.at,
-    why: "2 units short. XBS also has 12 units of this outturn at KCCE, so check for bags from another lot on this stack.",
-  },
-  {
-    id: "R-032",
-    site: "IBR",
-    stack: "D-09-1",
-    batch: "KCS7222-CLEAN 1",
-    outturn: "KCS7222",
-    askedBy: DEMO.rejected.by,
-    at: "11:21",
-    why: "Brian K.'s count didn't match XBS. Count every bag again from the bottom tier up.",
-  },
-];
-
-export const ISSUES: Issue[] = [
-  {
-    id: "C-118",
-    category: "Network or saving",
-    site: "IBR",
-    screen: "Count a lot",
-    text: "No signal at the back of row G. Counts stayed on the phone for 20 minutes.",
-    by: "Achieng O.",
-    at: "Fri 27 Feb, 15:12",
-    status: "In progress",
-    resolution: "IT is adding a Wi-Fi access point near row G.",
-  },
-  {
-    id: "C-109",
-    category: "Tag missing or unreadable",
-    site: "AGL",
-    screen: "Count a lot",
-    text: "Several tags faded at AGL Site 2. Hard to tell 3 from 8.",
-    by: "Achieng O.",
-    at: "Mon 2 Feb, 10:40",
-    status: "Resolved",
-    resolution: "AGL re-tagged Site 2 stacks. Faded tags now go in as a variance reason.",
-  },
-];

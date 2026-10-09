@@ -11,5 +11,76 @@
   "localAppUrl": "http://localhost:3000",
   "logoPath": "Default",
   "connectionReferences": {},
-  "databaseReferences": {}
+  "databaseReferences": {
+    "default.cds": {
+      "dataSources": {
+        "warehouses": {
+          "entitySetName": "stk_sites",
+          "logicalName": "stk_site",
+          "isHidden": false
+        },
+        "packingtypes": {
+          "entitySetName": "stk_packtypes",
+          "logicalName": "stk_packtype",
+          "isHidden": false
+        },
+        "settings": {
+          "entitySetName": "stk_settings",
+          "logicalName": "stk_setting",
+          "isHidden": false
+        },
+        "xbsimports": {
+          "entitySetName": "stk_xbsimports",
+          "logicalName": "stk_xbsimport",
+          "isHidden": false
+        },
+        "xbslines": {
+          "entitySetName": "stk_xbslines",
+          "logicalName": "stk_xbsline",
+          "isHidden": false
+        },
+        "stocktakes": {
+          "entitySetName": "stk_stocktakes",
+          "logicalName": "stk_stocktake",
+          "isHidden": false
+        },
+        "assignments": {
+          "entitySetName": "stk_assignments",
+          "logicalName": "stk_assignment",
+          "isHidden": false
+        },
+        "countsheets": {
+          "entitySetName": "stk_countsheets",
+          "logicalName": "stk_countsheet",
+          "isHidden": false
+        },
+        "stacks": {
+          "entitySetName": "stk_stacks",
+          "logicalName": "stk_stack",
+          "isHidden": false
+        },
+        "countlines": {
+          "entitySetName": "stk_countlines",
+          "logicalName": "stk_countline",
+          "isHidden": false
+        },
+        "recounts": {
+          "entitySetName": "stk_recounts",
+          "logicalName": "stk_recount",
+          "isHidden": false
+        },
+        "problemreports": {
+          "entitySetName": "stk_issues",
+          "logicalName": "stk_issue",
+          "isHidden": false
+        },
+        "users": {
+          "entitySetName": "systemusers",
+          "logicalName": "systemuser",
+          "isHidden": false
+        }
+      },
+      "environmentVariableName": ""
+    }
+  }
 }

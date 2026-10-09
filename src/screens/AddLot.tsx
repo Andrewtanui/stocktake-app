@@ -12,8 +12,9 @@ export default function AddLot({ site: code, stack }: { site: SiteCode; stack: s
   const t = q.trim().toUpperCase().replace(/\s+/g, "");
   const here = expectedLots(code, stack);
 
-  // Third parties: only lots XBS holds at this site. Ibero: any lot in XBS.
-  const pool = groupByBatch(s.thirdParty ? linesAt(code).filter((l) => l.t === "W") : allLines());
+  // Manual entry off (NKG_config, e.g. third parties): only lots XBS holds at this site can be picked.
+  const locked = !s.manualEntry;
+  const pool = groupByBatch(locked ? linesAt(code).filter((l) => l.t === "W") : allLines());
   const matches = t.length >= 2 ? pool.filter((l) => l.head.o.includes(t) || (l.head.g ?? "").toUpperCase().includes(t)).slice(0, 8) : [];
   const exact = pool.some((l) => l.head.o === t);
   const suggestion = t.length >= 5 && !exact ? closestOutturn(t, here.map((l) => l.head.o)) : null;
@@ -28,7 +29,7 @@ export default function AddLot({ site: code, stack }: { site: SiteCode; stack: s
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. 12KN0015" aria-label="Outturn" autoComplete="off" spellCheck={false} />
       </div>
 
-      {s.thirdParty && (
+      {locked && (
         <Notice tone="neutral" icon={<Lock size={18} />}>
           Only lots XBS holds at {s.short} can be picked. Missing one? Report it.
         </Notice>
@@ -71,7 +72,7 @@ export default function AddLot({ site: code, stack }: { site: SiteCode; stack: s
         </Section>
       )}
 
-      {!s.thirdParty && t.length >= 5 && !exact && (
+      {!locked && t.length >= 5 && !exact && (
         <Section title={`${t} isn't in XBS`}>
           <Row title="Count it as found stock" sub="Your supervisor will look it up" onClick={() => open("FOUND:" + t)} />
         </Section>

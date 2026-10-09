@@ -5,7 +5,6 @@ import { bags60, compare, kgOf, pocketProblem, unitsOf, type Qty } from "../data
 import {
   CATEGORIES,
   PACK_TYPES,
-  RECOUNTS,
   REASONS,
   allLines,
   defaultPack,
@@ -26,7 +25,7 @@ export default function CountLot({ site: code, stack, batch, recount }: { site: 
   const go = useNav();
   const store = useStore();
   const s = site(code);
-  const task = recount ? RECOUNTS.find((r) => r.id === recount) : undefined;
+  const task = recount ? store.recount(recount) : undefined;
 
   // Which lot is this? Expected here, found here but expected elsewhere, or not in XBS at all.
   const here = expectedLots(code, stack);

@@ -1,146 +1,53 @@
-// In-memory app state for the demo: counts, submitted stacks, recorded
-// third-party stacks, complaints and the offline queue. Nothing leaves the
-// browser. In the real app saveCount/submitStack write to the count-sheet
-// lists, and the offline queue is the Power Apps offline profile.
+// App state for the counter app. Loaded once through the active data source
+// (mock or Dataverse), then every change is applied on screen straight away
+// and saved through the source. Counts made while offline wait on the phone
+// (synced: false) and are sent when the connection comes back.
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { compare, kgOf, unitsOf, type Qty } from "./calc";
-import {
-  ASSIGNMENT,
-  DEMO,
-  ISSUES,
-  RECOUNTS,
-  TEAMMATE,
-  defaultPack,
-  expectedLots,
-  parseZone,
-  zonesInRows,
-} from "./repository";
-import type { Issue, SiteCode, StackStatus, StockCategory, VarianceReason } from "./types";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { compare, kgOf, unitsOf } from "./calc";
+import { ASSIGNMENT, expectedLots, setReference } from "./repository";
+import { getSource, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./source";
+import type { Issue, SiteCode, StackStatus } from "./types";
+import { LoadError, Splash } from "../ui/Splash";
 
-export interface CountEntry extends Qty {
-  site: SiteCode;
-  stack: string;
-  /** XBS batch, or a generated id for lots found but not expected here. */
-  batch: string;
-  outturn: string;
-  grade: string;
-  category: StockCategory;
-  reason?: VarianceReason;
-  note?: string;
-  by: string;
-  at: string;
-  synced: boolean;
-  /** Not on the XBS list for this stack: found stock, typed in or picked from elsewhere. */
-  found?: boolean;
-  /** Sweepings, loose bags and other stock counted without an XBS outturn. */
-  other?: boolean;
-  /** Direct purchases: contract or delivery note the bags arrived on. */
-  reference?: string;
-  recount?: string;
-}
-
-export interface StackState {
-  state: "submitted" | "approved" | "rejected";
-  at: string;
-  by?: string;
-  comment?: string;
-}
-
-export interface TpStack {
-  name: string;
-  note: string;
-}
+export type { CountEntry, StackState, TpStack };
 
 const key = (site: SiteCode, stack: string) => `${site}|${stack}`;
 const lineKey = (e: { site: SiteCode; stack: string; batch: string; by: string }) => `${e.site}|${e.stack}|${e.batch}|${e.by}`;
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-function seed(me: string) {
-  const counts: CountEntry[] = [];
-  const stacks: Record<string, StackState> = {};
-  let minute = 7 * 60 + 10;
-  const stamp = () => {
-    minute += 3;
-    return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
-  };
-  for (const z of zonesInRows(["D"])) {
-    const p = parseZone(z)!;
-    if (p.bay > DEMO.submittedBays) continue;
-    for (const lot of expectedLots("IBR", z)) {
-      const short = z === DEMO.short.stack && lot.batch === DEMO.short.batch;
-      const pocketBags = lot.units - lot.bags;
-      const bags = short ? lot.bags - 2 : lot.bags;
-      counts.push({
-        site: "IBR",
-        stack: z,
-        batch: lot.batch,
-        outturn: lot.head.o,
-        grade: lot.head.i,
-        category: lot.parts.some((x) => x.t === "B") ? "Processing stock" : "Current stock",
-        pack: defaultPack(lot.head.i),
-        bags,
-        pocketBags,
-        pocketKg: Math.round(lot.pockets * 10) / 10,
-        reason: short ? "Not sure, supervisor to check" : undefined,
-        by: me,
-        at: stamp(),
-        synced: true,
-      });
-    }
-    stacks[key("IBR", z)] =
-      z === DEMO.rejected.stack
-        ? { state: "rejected", at: DEMO.rejected.at, by: DEMO.rejected.by, comment: DEMO.rejected.comment }
-        : p.bay <= DEMO.approvedUpTo
-          ? { state: "approved", at: "10:30", by: DEMO.rejected.by }
-          : { state: "submitted", at: stamp() };
-  }
-  const t = DEMO.teammateCount;
-  const lot = expectedLots("IBR", t.stack).find((l) => l.batch === t.batch)!;
-  counts.push({
-    site: "IBR",
-    stack: t.stack,
-    batch: t.batch,
-    outturn: lot.head.o,
-    grade: lot.head.i,
-    category: "Current stock",
-    pack: "JUTE60",
-    bags: t.bags,
-    pocketBags: t.pocketBags,
-    pocketKg: t.pocketKg,
-    by: TEAMMATE,
-    at: t.at,
-    synced: true,
-  });
-  return { counts, stacks };
-}
-
-function useStoreState(me: string) {
-  const initial = useMemo(() => seed(me), [me]);
-  const [counts, setCounts] = useState<CountEntry[]>(initial.counts);
-  const [stacks, setStacks] = useState<Record<string, StackState>>(initial.stacks);
-  const [tpStacks, setTpStacks] = useState<Record<string, TpStack[]>>({
-    AGL: [
-      { name: "Site 1 · Stack 1", note: "Left of gate, under the AGL banner" },
-      { name: "Site 2 · Stack 1", note: "North wall, 3 tiers" },
-    ],
-  });
-  const [issues, setIssues] = useState<Issue[]>(() => ISSUES.map((i) => ({ ...i, by: me })));
-  const [recountsDone, setRecountsDone] = useState<string[]>([]);
+function useStoreState(me: string, source: DataSource, data: CounterData) {
+  const [counts, setCounts] = useState<CountEntry[]>(data.counts);
+  const [stacks, setStacks] = useState<Record<string, StackState>>(data.stacks);
+  const [tpStacks, setTpStacks] = useState<Record<string, TpStack[]>>(data.tpStacks);
+  const [issues, setIssues] = useState<Issue[]>(data.issues);
+  const [recountsDone, setRecountsDone] = useState<string[]>(data.recountsDone);
   const [online, setOnlineState] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
   const flash = (msg: string) => {
     setToast(msg);
-    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2600);
+    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 3200);
   };
+
+  /** Runs a save; on failure tells the counter and runs `undo` so the screen doesn't lie. */
+  const persist = (work: Promise<void>, what: string, undo?: () => void) =>
+    work.catch((e: unknown) => {
+      console.error(e);
+      undo?.();
+      flash(`Couldn't save ${what}. ${e instanceof Error ? e.message : ""}`.trim());
+    });
 
   const now = () => {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
+  const markSynced = (id: string, synced: boolean) => setCounts((cs) => cs.map((c) => (c.id === id ? { ...c, synced } : c)));
+
   return {
     me,
+    source: source.kind,
     counts,
     stacks,
     tpStacks,
@@ -151,11 +58,10 @@ function useStoreState(me: string) {
 
     setOnline(v: boolean) {
       setOnlineState(v);
-      if (v) {
-        const n = counts.filter((c) => !c.synced).length;
-        setCounts((cs) => cs.map((c) => ({ ...c, synced: true })));
-        if (n) flash(`Back online. ${n} saved count${n === 1 ? "" : "s"} sent.`);
-      } else flash("Offline. Counts will be kept on this phone.");
+      if (!v) return flash("Offline. Counts will be kept on this phone.");
+      const waiting = counts.filter((c) => !c.synced);
+      for (const c of waiting) persist(source.saveCount({ ...c, synced: true }).then(() => markSynced(c.id, true)), c.outturn);
+      if (waiting.length) flash(`Back online. Sending ${waiting.length} saved count${waiting.length === 1 ? "" : "s"}.`);
     },
 
     entry(site: SiteCode, stack: string, batch: string, by = me) {
@@ -169,11 +75,14 @@ function useStoreState(me: string) {
       return counts.filter((c) => c.outturn === outturn && !(c.site === site && c.stack === stack));
     },
 
-    saveCount(e: Omit<CountEntry, "by" | "at" | "synced">) {
-      const full: CountEntry = { ...e, by: me, at: now(), synced: online };
-      setCounts((cs) => [...cs.filter((c) => lineKey(c) !== lineKey(full)), full]);
+    saveCount(e: Omit<CountEntry, "id" | "by" | "at" | "synced">) {
+      const existing = counts.find((c) => lineKey(c) === lineKey({ ...e, by: me }));
+      const full: CountEntry = { ...e, id: existing?.id ?? newId(), by: me, at: now(), synced: online };
+      setCounts((cs) => [...cs.filter((c) => c.id !== full.id), full]);
+      if (online) persist(source.saveCount(full), e.outturn, () => markSynced(full.id, false));
       if (e.recount) {
         setRecountsDone((r) => [...r, e.recount!]);
+        persist(source.completeRecount(e.recount), "the recount", () => setRecountsDone((r) => r.filter((x) => x !== e.recount)));
         const k = key(e.site, e.stack);
         setStacks((s) => (s[k]?.state === "rejected" ? { ...s, [k]: { state: "submitted", at: full.at, comment: "Recounted" } } : s));
       }
@@ -184,7 +93,17 @@ function useStoreState(me: string) {
       return stacks[key(site, stack)];
     },
     submitStack(site: SiteCode, stack: string, comment: string) {
-      setStacks((s) => ({ ...s, [key(site, stack)]: { state: "submitted", at: now(), comment: comment || undefined } }));
+      const k = key(site, stack);
+      const before = stacks[k];
+      setStacks((s) => ({ ...s, [k]: { state: "submitted", at: now(), comment: comment || undefined } }));
+      persist(source.submitStack(site, stack, comment), `stack ${stack}`, () =>
+        setStacks((s) => {
+          const next = { ...s };
+          if (before) next[k] = before;
+          else delete next[k];
+          return next;
+        }),
+      );
       flash(`Stack ${stack} sent to the supervisor.`);
     },
 
@@ -203,8 +122,8 @@ function useStoreState(me: string) {
         return off ? "variance" : "done";
       }
       if (es.length) return "active";
-      // Rows outside this counter's area: other teams finished A–C this morning.
-      if (site === "IBR" && !ASSIGNMENT.rows.includes(stack[0]) && "ABC".includes(stack[0])) return "done";
+      // Demo only: in mock mode other teams finished rows A–C this morning.
+      if (source.kind === "mock" && site === "IBR" && !ASSIGNMENT.rows.includes(stack[0]) && "ABC".includes(stack[0])) return "done";
       return "todo";
     },
 
@@ -213,19 +132,25 @@ function useStoreState(me: string) {
     },
     addTpStack(site: SiteCode, s: TpStack) {
       setTpStacks((t) => ({ ...t, [site]: [...(t[site] ?? []), s] }));
+      persist(source.addTpStack(site, s), s.name, () => setTpStacks((t) => ({ ...t, [site]: (t[site] ?? []).filter((x) => x.name !== s.name) })));
       flash(`${s.name} recorded.`);
     },
 
+    recount(id: string) {
+      return data.recounts.find((r) => r.id === id);
+    },
     recountsOpen() {
-      return RECOUNTS.filter((r) => !recountsDone.includes(r.id));
+      return data.recounts.filter((r) => !recountsDone.includes(r.id));
     },
     recountsDone() {
-      return RECOUNTS.filter((r) => recountsDone.includes(r.id));
+      return data.recounts.filter((r) => recountsDone.includes(r.id));
     },
 
     addIssue(i: Omit<Issue, "id" | "by" | "at" | "status">) {
       const id = `C-${120 + issues.length}`;
-      setIssues((xs) => [{ ...i, id, by: me, at: `Today, ${now()}`, status: "Open" }, ...xs]);
+      const full: Issue = { ...i, id, by: me, at: `Today, ${now()}`, status: "Open" };
+      setIssues((xs) => [full, ...xs]);
+      persist(source.addIssue(full), "your report", () => setIssues((xs) => xs.filter((x) => x.id !== id)));
       flash(`Problem ${id} sent to the stock take lead.`);
     },
   };
@@ -235,8 +160,38 @@ export type Store = ReturnType<typeof useStoreState>;
 const Ctx = createContext<Store | null>(null);
 export const useStore = () => useContext(Ctx)!;
 
+type Phase = { s: "loading" } | { s: "error"; message: string } | { s: "ready"; source: DataSource; data: CounterData };
+
+/** Loads the data source, then provides the store. Shows a splash while loading and a retry screen on failure. */
 export function StoreProvider({ me, children }: { me: string; children: ReactNode }) {
-  const s = useStoreState(me);
+  const [phase, setPhase] = useState<Phase>({ s: "loading" });
+  const load = useCallback(async () => {
+    setPhase({ s: "loading" });
+    try {
+      const source = await getSource();
+      const data = await source.load(me);
+      setReference(data.reference);
+      setPhase({ s: "ready", source, data });
+    } catch (e) {
+      console.error(e);
+      setPhase({ s: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }, [me]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (phase.s === "loading") return <Splash />;
+  if (phase.s === "error") return <LoadError message={phase.message} onRetry={load} />;
+  return (
+    <Ready me={me} source={phase.source} data={phase.data}>
+      {children}
+    </Ready>
+  );
+}
+
+function Ready({ me, source, data, children }: { me: string; source: DataSource; data: CounterData; children: ReactNode }) {
+  const s = useStoreState(me, source, data);
   return <Ctx.Provider value={s}>{children}</Ctx.Provider>;
 }
 

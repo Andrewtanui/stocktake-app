@@ -6,7 +6,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:preview": "vite build --mode preview",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "check:shared": "node scripts/check-shared.mjs",
+    "dev:dv": "vite --mode dataverse",
+    "build:dv": "tsc -b && vite build --mode dataverse"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
@@ -27,5 +30,8 @@
     "typescript": "5.6",
     "vite": "^6.4.4",
     "vite-plugin-singlefile": "^2.3.3"
+  },
+  "allowScripts": {
+    "keytar@7.9.0": true
   }
 }

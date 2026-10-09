@@ -44,10 +44,13 @@ export interface Site {
 
 /** Settings-table row: one packing type, shared with XBS so both calculate weight the same way. */
 export interface PackType {
-  id: "JUTE60" | "JUTE50";
+  /** Code, e.g. JUTE60 (stk_packtype.stk_code). */
+  id: string;
   label: string;
   kg: number;
   hint: string;
+  /** Grades that default to this pack (regex source), e.g. "LIGHT". */
+  gradePattern?: string;
 }
 
 /** Stock categories from the discovery session (BRD §5.1). */
