@@ -1,30 +1,49 @@
-import { ArrowRight, Map, RotateCcw, Users, Warehouse } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, ChevronDown, Map, RotateCcw, ScanLine, Warehouse } from "lucide-react";
 import { useNav } from "../App";
 import { ASSIGNMENT, SITES, STOCK_TAKE, expectedLots, linesAt, zoneWords, zonesInRows } from "../data/repository";
 import { useStore } from "../data/store";
 import { useWho } from "../PowerProvider";
 import { Code, Ring, Row, Section, StatusIcon, n } from "../ui/kit";
 
+const SHOW = 8;
+
 export default function Home() {
   const go = useNav();
   const who = useWho();
   const store = useStore();
+  const [all, setAll] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
-  const mine = zonesInRows(ASSIGNMENT.rows);
-  const status = mine.map((z) => ({ z, s: store.stackStatus("IBR", z) }));
-  const submitted = status.filter((x) => x.s === "done" || x.s === "variance").length;
-  const next = status.find((x) => x.s === "active" || x.s === "todo")?.z ?? mine[0];
-  const nextLots = expectedLots("IBR", next);
-  const teammate = store.entriesAt("IBR", next).find((e) => e.by !== store.me)?.by;
-  const upNext = status.filter((x) => (x.s === "active" || x.s === "todo") && x.z !== next).slice(0, 4);
+  // Checklist: every stack in my rows, with how many of its lots have been counted (never quantities).
+  const mine = zonesInRows(ASSIGNMENT.rows).map((z) => {
+    const lots = expectedLots("IBR", z);
+    const here = store.entriesAt("IBR", z);
+    return { z, s: store.stackStatus("IBR", z), lots: lots.length, counted: lots.filter((l) => here.some((e) => e.batch === l.batch)).length };
+  });
+  const order = { variance: 0, active: 1, todo: 2, done: 3 } as const;
+  const open = mine.filter((x) => x.s !== "done").sort((a, b) => order[a.s] - order[b.s]);
+  const done = mine.filter((x) => x.s === "done");
   const recounts = store.recountsOpen();
+  const rows = ASSIGNMENT.rows.join(" and ");
+
+  const stackRow = ({ z, s, lots, counted }: (typeof mine)[number]) => (
+    <Row
+      key={z}
+      lead={<StatusIcon s={s} />}
+      title={<Code>{z}</Code>}
+      sub={s === "variance" ? <span className="t-crit">Sent back — open it to see why</span> : zoneWords(z)}
+      trail={<span className="muted">{s === "done" ? `${lots} lots` : `${counted} of ${lots} lots`}</span>}
+      onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}
+    />
+  );
 
   return (
     <div className="page">
       <header className="greeting">
         <p className="eyebrow">{STOCK_TAKE.countDate}</p>
         <h1 className="title">Good morning, {who.name.split(" ")[0]}</h1>
-        <p className="subtitle">Ibero Export Warehouse · rows D and E</p>
+        <p className="subtitle">Ibero Export Warehouse · rows {rows}</p>
       </header>
 
       {recounts.length > 0 && (
@@ -36,61 +55,60 @@ export default function Home() {
             <strong className="notice-title">
               {recounts.length} recount{recounts.length === 1 ? "" : "s"} from your supervisor
             </strong>
-            <span className="notice-text">Do these before your next stack</span>
+            <span className="notice-text">Do these first</span>
           </span>
           <ArrowRight size={18} aria-hidden />
         </button>
       )}
 
-      <section className="hero" aria-labelledby="next-h">
+      <section className="hero" aria-labelledby="count-h">
         <div className="hero-top">
           <div>
-            <h2 id="next-h" className="hero-eyebrow">
-              Next stack
+            <h2 id="count-h" className="hero-eyebrow">
+              Read the tag
             </h2>
-            <div className="hero-code code">{next}</div>
-            <p className="hero-meta">{zoneWords(next)}</p>
+            <div className="hero-title">Count an outturn</div>
+            <p className="hero-meta">Type the outturn, say where it is, count the bags.</p>
           </div>
-          <Ring value={submitted} max={mine.length} light />
+          <Ring value={done.length} max={mine.length} light />
         </div>
         <p className="hero-facts">
           <span>
-            <strong>{nextLots.length}</strong> lots
-          </span>
-          <span>
-            <strong>{n(nextLots.reduce((a, l) => a + l.units, 0))}</strong> units expected
+            <strong>{done.length}</strong> of {mine.length} stacks submitted
           </span>
         </p>
-        {teammate && (
-          <p className="hero-team">
-            <Users size={16} aria-hidden /> {teammate} started this stack
-          </p>
-        )}
-        <button className="btn btn-light btn-lg btn-block" onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: next })}>
-          Start counting
-          <ArrowRight size={20} aria-hidden />
+        <button className="btn btn-light btn-lg btn-block" onClick={() => go({ tab: "count", view: "find" })}>
+          <ScanLine size={20} aria-hidden />
+          Count an outturn
         </button>
       </section>
 
       <Section
-        title="Up next"
+        title={`Checklist · ${open.length} stack${open.length === 1 ? "" : "s"} to finish`}
         action={
           <button className="text-btn" onClick={() => go({ tab: "count", view: "site", site: "IBR" })}>
             <Map size={16} aria-hidden /> Floor map
           </button>
         }
       >
-        {upNext.map(({ z, s }) => (
-          <Row
-            key={z}
-            lead={<StatusIcon s={s} />}
-            title={<Code>{z}</Code>}
-            sub={zoneWords(z)}
-            trail={<span className="muted">{expectedLots("IBR", z).length} lots</span>}
-            onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}
-          />
-        ))}
+        {(all ? open : open.slice(0, SHOW)).map(stackRow)}
+        {!open.length && <p className="empty">Every stack in your rows is submitted.</p>}
+        {open.length > SHOW && (
+          <button type="button" className="text-btn center" onClick={() => setAll((v) => !v)}>
+            {all ? "Show fewer" : `Show all ${open.length}`}
+          </button>
+        )}
       </Section>
+
+      {done.length > 0 && (
+        <section className="section">
+          <button type="button" className="disclosure" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
+            <span>Submitted · {done.length}</span>
+            <ChevronDown size={18} aria-hidden />
+          </button>
+          {showDone && <div className="group">{done.map(stackRow)}</div>}
+        </section>
+      )}
 
       <Section title="Third-party sites">
         {SITES.filter((s) => s.thirdParty).map((s) => {
@@ -104,7 +122,7 @@ export default function Home() {
                 </span>
               }
               title={s.name}
-              sub={`${n(lots.length)} lots · ${n(lots.reduce((a, l) => a + l.bg, 0))} bags`}
+              sub={`${n(lots.length)} lots`}
               onClick={() => go({ tab: "count", view: "site", site: s.code })}
             />
           );

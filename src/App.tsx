@@ -6,6 +6,7 @@ import Home from "./screens/Home";
 import SiteView from "./screens/SiteView";
 import StackView from "./screens/StackView";
 import CountLot from "./screens/CountLot";
+import CountOutturn from "./screens/CountOutturn";
 import AddLot from "./screens/AddLot";
 import OtherStock from "./screens/OtherStock";
 import MyCounts from "./screens/MyCounts";
@@ -16,9 +17,10 @@ import { Logo } from "./ui/Logo";
 export type Tab = "count" | "counts" | "recounts" | "report";
 export type Route =
   | { tab: "count"; view: "home" }
+  | { tab: "count"; view: "find" }
   | { tab: "count"; view: "site"; site: SiteCode }
   | { tab: "count"; view: "stack"; site: SiteCode; stack: string }
-  | { tab: "count"; view: "lot"; site: SiteCode; stack: string; batch: string; recount?: string }
+  | { tab: "count"; view: "lot"; site: SiteCode; stack: string; batch: string; recount?: string; from?: "find" }
   | { tab: "count"; view: "add"; site: SiteCode; stack: string }
   | { tab: "count"; view: "other"; site: SiteCode; stack: string }
   | { tab: Exclude<Tab, "count"> };
@@ -28,6 +30,7 @@ export const useNav = () => useContext(Nav);
 
 const SCREEN_NAMES: Record<string, string> = {
   home: "Count home",
+  find: "Count an outturn",
   site: "Floor map / site",
   stack: "Stack",
   lot: "Count a lot",
@@ -51,10 +54,13 @@ export default function App() {
   let screen;
   if (route.tab === "count") {
     if (route.view === "home") screen = <Home />;
+    else if (route.view === "find") screen = <CountOutturn />;
     else if (route.view === "site") screen = <SiteView code={route.site} />;
     else if (route.view === "stack") screen = <StackView site={route.site} stack={route.stack} />;
     else if (route.view === "lot")
-      screen = <CountLot key={route.batch + route.recount} site={route.site} stack={route.stack} batch={route.batch} recount={route.recount} />;
+      screen = (
+        <CountLot key={route.batch + route.stack + route.recount} site={route.site} stack={route.stack} batch={route.batch} recount={route.recount} from={route.from} />
+      );
     else if (route.view === "add") screen = <AddLot site={route.site} stack={route.stack} />;
     else screen = <OtherStock site={route.site} stack={route.stack} />;
   } else if (route.tab === "counts") screen = <MyCounts />;

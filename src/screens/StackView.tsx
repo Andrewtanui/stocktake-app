@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CircleCheck, CloudOff, Layers, PackagePlus, Plus, Undo2 } from "lucide-react";
 import { useNav } from "../App";
-import { compare, unitsOf } from "../data/calc";
+import { unitsOf } from "../data/calc";
 import { elsewhere, expectedLots, site, zoneWords } from "../data/repository";
 import { useStore } from "../data/store";
 import type { SiteCode } from "../data/types";
@@ -61,7 +61,7 @@ export default function StackView({ site: code, stack }: { site: SiteCode; stack
       <Section title={s.thirdParty ? "Counted on this stack" : "Lots on this stack"}>
         {lots.map((lot) => {
           const e = entryFor(lot.batch);
-          const c = e && compare(e, lot);
+          const mineHere = e && e.by === store.me;
           const notes = [
             e && e.by !== store.me && `Counted by ${e.by}`,
             elsewhere(lot.head).length > 0 && "Split lot",
@@ -70,7 +70,7 @@ export default function StackView({ site: code, stack }: { site: SiteCode; stack
           return (
             <Row
               key={lot.batch}
-              lead={<StatusIcon s={!e ? "todo" : c!.match ? "match" : "variance"} />}
+              lead={<StatusIcon s={e ? "match" : "todo"} />}
               title={
                 <>
                   <Code>{lot.head.o}</Code> <span className="row-tag">{lot.head.i}</span>
@@ -78,16 +78,17 @@ export default function StackView({ site: code, stack }: { site: SiteCode; stack
               }
               sub={
                 <>
-                  {e && !c!.match ? <span className="t-crit">{c!.headline}</span> : e ? "Matches XBS" : `${lot.units} units expected`}
-                  {notes.length > 0 && ` · ${notes.join(" · ")}`}
+                  {[mineHere ? "Counted" : e ? undefined : [lot.head.bn, lot.head.g].filter(Boolean).join(" · ") || "Not counted yet", ...notes]
+                    .filter(Boolean)
+                    .join(" · ")}
                   {e && !e.synced && <CloudOff size={13} className="inline-icon" aria-hidden />}
                 </>
               }
               trail={
-                e ? (
+                mineHere ? (
                   <span className="qty">
                     <strong>{unitsOf(e)}</strong>
-                    <span>/ {lot.units}</span>
+                    <span>units</span>
                   </span>
                 ) : undefined
               }
@@ -98,7 +99,7 @@ export default function StackView({ site: code, stack }: { site: SiteCode; stack
         {extras.map((e) => (
           <Row
             key={e.batch}
-            lead={<StatusIcon s="variance" />}
+            lead={<StatusIcon s="match" />}
             title={e.other ? e.category : <Code>{e.outturn}</Code>}
             sub={e.other ? "Other stock" : "Found here, not expected"}
             trail={

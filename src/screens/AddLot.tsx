@@ -63,7 +63,7 @@ export default function AddLot({ site: code, stack }: { site: SiteCode; stack: s
               <Row
                 key={l.batch}
                 title={<Code>{l.head.o}</Code>}
-                sub={`${l.head.i} · ${l.units} units · ${where}`}
+                sub={`${l.head.i} · ${where}`}
                 trail={isHere ? <Pill tone="ok">Here</Pill> : <Pill tone="warn">Elsewhere</Pill>}
                 onClick={() => open(l.batch)}
               />
@@ -81,7 +81,7 @@ export default function AddLot({ site: code, stack }: { site: SiteCode; stack: s
       {t.length < 2 && !s.thirdParty && (
         <Section title="On this stack">
           {here.map((l) => (
-            <Row key={l.batch} title={<Code>{l.head.o}</Code>} sub={`${l.head.i} · ${l.units} units`} onClick={() => open(l.batch)} />
+            <Row key={l.batch} title={<Code>{l.head.o}</Code>} sub={[l.head.i, l.head.g].filter(Boolean).join(" · ")} onClick={() => open(l.batch)} />
           ))}
         </Section>
       )}

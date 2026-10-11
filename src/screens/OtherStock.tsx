@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useNav } from "../App";
-import { bags60, kgOf, pocketProblem, unitsOf, type Qty } from "../data/calc";
+import { bags60, kgOf, pocketProblem, unitsOf, withPocket, type Qty } from "../data/calc";
 import { OTHER_CATEGORIES, PACK_TYPES } from "../data/repository";
 import { useStore } from "../data/store";
 import type { PackType, SiteCode, StockCategory } from "../data/types";
@@ -68,10 +68,7 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
           <Segmented<PackType["id"]> label="Bag size" value={q.pack} onChange={(v) => set({ pack: v })} options={PACK_TYPES.map((p) => [p.id, `${p.kg} kg jute`])} />
         </div>
         <Stepper id="o-bags" label="Full bags" value={q.bags} onChange={(v) => set({ bags: v })} />
-        <div className="split-2">
-          <Stepper id="o-pb" size="md" label="Pocket bags" value={q.pocketBags} onChange={(v) => set({ pocketBags: v })} />
-          <Stepper id="o-pk" size="md" label="Pocket kg" value={q.pocketKg} onChange={(v) => set({ pocketKg: Math.round(v * 10) / 10 })} decimal />
-        </div>
+        <Stepper id="o-pk" size="md" label="Pocket weight (kg)" value={q.pocketKg} onChange={(v) => set(withPocket(q, Math.round(v * 10) / 10))} decimal hint="One odd bag · 0 if none" />
         {problem && (
           <p className="hint hint-crit" role="alert">
             <TriangleAlert size={15} aria-hidden /> {problem}

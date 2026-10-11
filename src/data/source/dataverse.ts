@@ -126,7 +126,20 @@ async function load(): Promise<CounterData> {
     { select: ["stk_stocktakeid", "stk_name", "stk_type", "stk_countdate", "_stk_import_value"], filter: `stk_status eq ${live}`, orderBy: ["stk_countdate desc"], top: 1 },
     "find the stock take",
   );
-  if (!stockTake) throw new Error("There's no stock take in progress. Ask Operations to start one.");
+  if (!stockTake) {
+    // Say why there's nothing to count: the latest one may be past counting.
+    const [latest] = await all(
+      (o) => Stk_stocktakesService.getAll(o),
+      { select: ["stk_status", "stk_countdate"], orderBy: ["stk_countdate desc"], top: 1 },
+      "find the stock take",
+    );
+    const when = latest?.stk_countdate ? latest.stk_countdate.slice(0, 10).split("-").reverse().join("/") : "";
+    const status = label(Stk_stocktakesstk_status, latest?.stk_status);
+    if (status === "Reconciliation" || status === "Sign-off")
+      throw new Error(`Counting is closed — the ${when} stock take is in ${status.toLowerCase()}.`);
+    if (status === "Completed") throw new Error(`Counting is closed — the ${when} stock take is complete. Ask Operations to start the next one.`);
+    throw new Error("There's no stock take yet. Ask Operations to start one.");
+  }
   s.stockTakeId = stockTake.stk_stocktakeid;
 
   const [assignment] = await all(

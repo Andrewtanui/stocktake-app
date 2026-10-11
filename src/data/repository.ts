@@ -81,20 +81,34 @@ export const REASONS: VarianceReason[] = [
 
 /* ---------- locations ---------- */
 
-const ZONE_RE = /^([A-G])(?:\/[A-G])?-(\d{2})(?:\/(\d{2}))?-(\d+)$/;
+const ZONE_RE = /^([A-G])(?:\/([A-G]))?-(\d{2})(?:\/(\d{2}))?-(\d+)$/;
+const ROWS = "ABCDEFG";
 
-/** XBS stack code, e.g. "D-02/03-4" = row D, bays 2–3, level 4. */
+/**
+ * XBS stack code, e.g. "D-02/03-4" = row D, bays 2–3, level 4;
+ * "A/B-14-1" = a stack between rows A and B, bay 14, level 1.
+ */
 export function parseZone(z: string) {
   const m = z.match(ZONE_RE);
   if (!m) return null;
-  return { row: m[1], bay: +m[2], bayTo: m[3] ? +m[3] : +m[2], level: +m[4] };
+  const row = m[1];
+  const rowTo = m[2] ?? row;
+  return { row, rowTo, between: rowTo !== row, bay: +m[3], bayTo: m[4] ? +m[4] : +m[3], level: +m[5] };
+}
+
+/** Every row a stack touches (one, or two when it sits between rows). */
+export function zoneRows(z: string) {
+  const p = parseZone(z);
+  if (!p) return [];
+  return ROWS.slice(ROWS.indexOf(p.row), ROWS.indexOf(p.rowTo) + 1).split("");
 }
 
 export function zoneWords(z: string) {
   const p = parseZone(z);
   if (!p) return z;
+  const rows = p.between ? `Between rows ${p.row} and ${p.rowTo}` : `Row ${p.row}`;
   const bays = p.bayTo !== p.bay ? `bays ${p.bay}–${p.bayTo}` : `bay ${p.bay}`;
-  return `Row ${p.row} · ${bays} · level ${p.level}`;
+  return `${rows} · ${bays} · level ${p.level}`;
 }
 
 /**
@@ -103,32 +117,63 @@ export function zoneWords(z: string) {
  * Both, plus "D5", "d 05" and "D-05-1", resolve to the same row and bay.
  */
 export function readLocation(input: string): { row: string; bay: number } | null {
-  const m = input.trim().toUpperCase().match(/^([A-G])\s*-?\s*0*(\d{1,2})(?:\s*-\s*\d+)?$/);
+  // Also takes between-row and multi-bay forms ("A/B-14", "D2/3"); it goes to the first row and bay.
+  const m = input.trim().toUpperCase().match(/^([A-G])(?:\s*\/\s*[A-G])?\s*-?\s*0*(\d{1,2})(?:\s*\/\s*\d{1,2})?(?:\s*-\s*\d+)?$/);
   if (!m) return null;
   const bay = +m[2];
   if (bay < 1 || bay > 14) return null;
   return { row: m[1], bay };
 }
+/**
+ * Builds the XBS stack code from where a counter says an outturn is: a full code
+ * ("D-05-1", "A/B-14-1"), or a bay ("D5", "D-05", "A/B-14", "D2/3") plus a level.
+ */
+export function locationCode(input: string, level: number): string | null {
+  const t = input.trim().toUpperCase().replace(/\s+/g, "");
+  if (parseZone(t)) return t;
+  const m = t.match(/^([A-G])(?:\/([A-G]))?-?0*(\d{1,2})(?:\/0*(\d{1,2}))?$/);
+  if (!m || level < 1) return null;
+  const bay = +m[3];
+  const bayTo = m[4] ? +m[4] : undefined;
+  if (bay < 1 || bay > 14 || (bayTo !== undefined && (bayTo < 1 || bayTo > 14))) return null;
+  const pad = (b: number) => String(b).padStart(2, "0");
+  return `${m[1]}${m[2] ? "/" + m[2] : ""}-${pad(bay)}${bayTo ? "/" + pad(bayTo) : ""}-${level}`;
+}
+
+/** Ibero stacks where XBS has this lot (no quantities — counting is blind). */
+export const iberoLocationsOf = (lot: Lot) => [...new Set(lot.parts.filter((p) => p.wh === "IBR" && p.z && parseZone(p.z)).map((p) => p.z!))].sort();
+
 export const bayCode = (row: string, bay: number) => `${row}-${String(bay).padStart(2, "0")}`;
 export const gridCode = (row: string, bay: number) => `${row}${String(bay).padStart(3, "0")}`;
 
 export function iberoGrid(): ZoneCell[] {
   const cells = new Map<string, ZoneCell>();
-  for (const r of "ABCDEFG")
+  for (const r of ROWS)
     for (let b = 1; b <= 14; b++) cells.set(r + b, { row: r, bay: b, zones: [], bags: 0 });
+  // A stack shows in every bay it covers, including both rows when it sits between them.
   for (const l of linesAt("IBR")) {
     const p = l.z && parseZone(l.z);
     if (!p) continue;
-    const c = cells.get(p.row + p.bay)!;
-    if (!c.zones.includes(l.z!)) c.zones.push(l.z!);
-    c.bags += l.bg;
+    const rows = zoneRows(l.z!);
+    for (const r of rows)
+      for (let b = p.bay; b <= p.bayTo; b++) {
+        const c = cells.get(r + b);
+        if (!c) continue;
+        if (!c.zones.includes(l.z!)) c.zones.push(l.z!);
+        c.bags += l.bg;
+        if (p.between) {
+          c.between ??= { up: false, down: false };
+          if (r !== rows[0]) c.between.up = true;
+          if (r !== rows[rows.length - 1]) c.between.down = true;
+        }
+      }
   }
   for (const c of cells.values()) c.zones.sort();
   return [...cells.values()];
 }
 
 export function zonesInRows(rows: string[]) {
-  return [...new Set(linesAt("IBR").map((l) => l.z!).filter((z) => rows.includes(z[0])))].sort((a, b) => {
+  return [...new Set(linesAt("IBR").map((l) => l.z!).filter((z) => zoneRows(z).some((r) => rows.includes(r))))].sort((a, b) => {
     const pa = parseZone(a)!;
     const pb = parseZone(b)!;
     return pa.row.localeCompare(pb.row) || pa.bay - pb.bay || a.localeCompare(b);

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Lock, MapPin, MapPinOff, Plus, Search } from "lucide-react";
 import { useNav } from "../App";
-import { ASSIGNMENT, bayCode, gridCode, iberoGrid, linesAt, readLocation, site, zoneWords } from "../data/repository";
+import { ASSIGNMENT, bayCode, gridCode, iberoGrid, linesAt, parseZone, readLocation, site, zoneWords } from "../data/repository";
 import { useStore } from "../data/store";
 import type { SiteCode, StackStatus, ZoneCell } from "../data/types";
-import { Code, Notice, PageHead, Row, STATUS_LABEL, Section, Sheet, StatusIcon, n } from "../ui/kit";
+import { Code, Notice, PageHead, Pill, Row, STATUS_LABEL, Section, Sheet, StatusIcon, n } from "../ui/kit";
 
 export default function SiteView({ code }: { code: SiteCode }) {
   const go = useNav();
@@ -70,10 +70,15 @@ function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
                     <button
                       key={c.bay}
                       role="gridcell"
-                      className={`cell s-${st}` + (ASSIGNMENT.rows.includes(r) ? " cell-mine" : "")}
+                      className={
+                        `cell s-${st}` +
+                        (ASSIGNMENT.rows.includes(r) ? " cell-mine" : "") +
+                        (c.between?.up ? " between-up" : "") +
+                        (c.between?.down ? " between-down" : "")
+                      }
                       aria-pressed={sel === c}
                       disabled={!c.zones.length}
-                      aria-label={`${bayCode(r, c.bay)}: ${c.zones.length} stacks, ${c.bags} bags`}
+                      aria-label={`${bayCode(r, c.bay)}: ${c.zones.length} stack${c.zones.length === 1 ? "" : "s"}${c.between ? ", includes a stack between rows" : ""}`}
                       onClick={() => setSel(c)}
                     />
                   );
@@ -90,20 +95,32 @@ function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
           <span>
             <span className="swatch s-empty" /> No stock
           </span>
+          <span>
+            <span className="swatch swatch-between" /> Stack between two rows
+          </span>
         </div>
       </div>
 
       {sel && (
-        <Section title={`Bay ${bayCode(sel.row, sel.bay)} · ${n(sel.bags)} bags`}>
+        <Section title={`Bay ${bayCode(sel.row, sel.bay)} · ${sel.zones.length} stack${sel.zones.length === 1 ? "" : "s"}`}>
           {sel.zones.map((z) => {
             const st = store.stackStatus("IBR", z);
+            const p = parseZone(z);
             return (
               <Row
                 key={z}
                 lead={<StatusIcon s={st} />}
                 title={<Code>{z}</Code>}
                 sub={zoneWords(z)}
-                trail={<span className="muted">{STATUS_LABEL[st]}</span>}
+                trail={
+                  p?.between ? (
+                    <Pill tone="warn">
+                      Between {p.row} &amp; {p.rowTo}
+                    </Pill>
+                  ) : (
+                    <span className="muted">{STATUS_LABEL[st]}</span>
+                  )
+                }
                 onClick={() => go({ tab: "count", view: "stack", site: "IBR", stack: z })}
               />
             );
@@ -130,7 +147,7 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
 
   return (
     <div className="page">
-      <PageHead back={back} title={s.name} sub={`Third party · ${n(lots.length)} lots · ${n(lots.reduce((a, l) => a + l.bg, 0))} bags`} />
+      <PageHead back={back} title={s.name} sub={`Third party · ${n(lots.length)} lots`} />
 
       <Notice tone="neutral" icon={<MapPinOff size={18} />} title="No stack locations in XBS">
         Record each stack with a landmark before you count it.
@@ -179,7 +196,7 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
             lead={<StatusIcon s={counted.has(l.o) ? "match" : "todo"} />}
             title={<Code>{l.o}</Code>}
             sub={`${l.i}${l.g ? " · " + l.g : ""}`}
-            trail={<span className="muted">{l.u} units</span>}
+            trail={counted.has(l.o) ? <span className="muted">Counted</span> : undefined}
           />
         ))}
         {shown.length > 25 && <p className="empty">{n(shown.length - 25)} more — search to narrow.</p>}

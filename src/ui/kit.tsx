@@ -103,7 +103,7 @@ export const STATUS_LABEL: Record<StackStatus, string> = {
   todo: "Not started",
   active: "In progress",
   done: "Submitted",
-  variance: "Needs attention",
+  variance: "Sent back",
 };
 export const STATUS_TONE: Record<StackStatus, Tone> = { todo: "neutral", active: "info", done: "ok", variance: "crit" };
 
@@ -117,7 +117,7 @@ export function StatusIcon({ s }: { s: StackStatus | "match" }) {
     );
   if (s === "variance")
     return (
-      <span className="sicon sicon-crit" aria-label="Needs attention">
+      <span className="sicon sicon-crit" aria-label="Sent back">
         <AlertCircle size={14} strokeWidth={2.6} />
       </span>
     );

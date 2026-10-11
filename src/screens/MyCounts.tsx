@@ -1,7 +1,6 @@
 import { CloudOff } from "lucide-react";
 import { useNav } from "../App";
-import { compare } from "../data/calc";
-import { STOCK_TAKE, expectedLots, site } from "../data/repository";
+import { STOCK_TAKE, site } from "../data/repository";
 import { useStore } from "../data/store";
 import type { SiteCode, StackStatus } from "../data/types";
 import { Code, Notice, PageHead, Pill, Row, Section, StatusIcon } from "../ui/kit";
@@ -41,12 +40,6 @@ export default function MyCounts() {
           <Section key={g.title} title={`${g.title} · ${rows.length}`}>
             {rows.map(({ site: code, stack }: { site: SiteCode; stack: string }) => {
               const es = mine.filter((c) => c.site === code && c.stack === stack);
-              const lots = expectedLots(code, stack);
-              const off = es.filter((e) => {
-                if (e.other) return false;
-                const l = lots.find((x) => x.batch === e.batch);
-                return e.found || !l || !compare(e, l).match;
-              }).length;
               const st = store.stackState(code, stack);
               const meta = STATE[st?.state ?? "progress"];
               const unsent = es.filter((e) => !e.synced).length;
@@ -62,7 +55,7 @@ export default function MyCounts() {
                   sub={
                     st?.state === "rejected" && st.comment
                       ? st.comment
-                      : `${es.length} lot${es.length === 1 ? "" : "s"} · ${off ? `${off} with a difference` : "all match"}`
+                      : `${es.length} lot${es.length === 1 ? "" : "s"} counted`
                   }
                   trail={
                     unsent ? (

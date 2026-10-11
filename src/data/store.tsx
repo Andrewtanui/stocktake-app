@@ -4,8 +4,8 @@
 // (synced: false) and are sent when the connection comes back.
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { compare, kgOf, unitsOf } from "./calc";
-import { ASSIGNMENT, expectedLots, setReference } from "./repository";
+import { kgOf, unitsOf } from "./calc";
+import { ASSIGNMENT, setReference } from "./repository";
 import { getSource, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./source";
 import type { Issue, SiteCode, StackStatus } from "./types";
 import { LoadError, Splash } from "../ui/Splash";
@@ -107,20 +107,12 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
       flash(`Stack ${stack} sent to the supervisor.`);
     },
 
-    /** Status used on the floor map and stack lists. */
+    /** Progress shown on the floor map and stack lists. Never compares with XBS (blind counting). */
     stackStatus(site: SiteCode, stack: string): StackStatus {
       const st = stacks[key(site, stack)];
       const es = counts.filter((c) => c.site === site && c.stack === stack);
       if (st?.state === "rejected") return "variance";
-      if (st) {
-        const lots = expectedLots(site, stack);
-        const off = es.some((c) => {
-          if (c.other) return false;
-          const lot = lots.find((l) => l.batch === c.batch);
-          return c.found || !lot || !compare(c, lot).match;
-        });
-        return off ? "variance" : "done";
-      }
+      if (st) return "done";
       if (es.length) return "active";
       // Demo only: in mock mode other teams finished rows A–C this morning.
       if (source.kind === "mock" && site === "IBR" && !ASSIGNMENT.rows.includes(stack[0]) && "ABC".includes(stack[0])) return "done";

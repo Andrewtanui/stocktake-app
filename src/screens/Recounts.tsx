@@ -1,7 +1,7 @@
 import { CircleCheck, EyeOff } from "lucide-react";
 import { useNav } from "../App";
 import { unitsOf } from "../data/calc";
-import { expectedLots, site, zoneWords } from "../data/repository";
+import { site, zoneWords } from "../data/repository";
 import { useStore } from "../data/store";
 import { Code, PageHead, Row, Section, StatusIcon } from "../ui/kit";
 
@@ -52,19 +52,17 @@ export default function Recounts() {
         <Section title="Done today">
           {done.map((r) => {
             const e = store.entry(r.site, r.stack, r.batch);
-            const lot = expectedLots(r.site, r.stack).find((l) => l.batch === r.batch);
             const counted = e ? unitsOf(e) : 0;
-            const same = lot && counted === lot.units;
             return (
               <Row
                 key={r.id}
-                lead={<StatusIcon s={same ? "match" : "variance"} />}
+                lead={<StatusIcon s="match" />}
                 title={
                   <>
                     <Code>{r.outturn}</Code> <span className="row-tag">{r.stack}</span>
                   </>
                 }
-                sub={same ? `${counted} units — matches XBS` : `${counted} units — XBS has ${lot?.units ?? "—"}; supervisor decides`}
+                sub={`You counted ${counted} units — your supervisor will review it`}
               />
             );
           })}

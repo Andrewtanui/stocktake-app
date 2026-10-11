@@ -116,7 +116,7 @@ function seed(me: string) {
         category: lot.parts.some((x) => x.t === "B") ? "Processing stock" : "Current stock",
         pack: defaultPack(lot.head.i),
         bags: short ? lot.bags - 2 : lot.bags,
-        pocketBags: lot.units - lot.bags,
+        pocketBags: lot.pockets > 0 ? 1 : 0,
         pocketKg: Math.round(lot.pockets * 10) / 10,
         reason: short ? "Not sure, supervisor to check" : undefined,
         by: me,

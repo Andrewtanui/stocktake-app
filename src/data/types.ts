@@ -82,6 +82,8 @@ export interface ZoneCell {
   bay: number; // 1–14
   zones: string[];
   bags: number;
+  /** A stack here also sits in the row above / below (XBS "A/B-…" = between rows A and B). */
+  between?: { up: boolean; down: boolean };
 }
 
 export type StockTakeType = "Monthly stock take" | "100% stock take";
