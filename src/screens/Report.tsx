@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Camera } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import { SITES, site } from "../data/repository";
 import { useStore } from "../data/store";
 import type { IssueCategory, SiteCode } from "../data/types";
 import { PageHead, Pill, Section, type Tone } from "../ui/kit";
+import { PhotoField } from "../ui/PhotoField";
+import type { Photo } from "../data/photo";
 
 const CATS: IssueCategory[] = [
   "App not working",
@@ -21,6 +23,7 @@ export default function Report({ lastScreen }: { lastScreen: string }) {
   const [cat, setCat] = useState<IssueCategory | null>(null);
   const [where, setWhere] = useState<SiteCode>("IBR");
   const [text, setText] = useState("");
+  const [photo, setPhoto] = useState<Photo>();
   const mine = store.issues.filter((i) => i.by === store.me);
 
   return (
@@ -52,17 +55,16 @@ export default function Report({ lastScreen }: { lastScreen: string }) {
           <span className="label">What happened?</span>
           <textarea className="input" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. App froze when I saved 12KN0015 at A-03-2" />
         </label>
+        <PhotoField label="Add a photo" name={`Problem ${site(where).short}`} value={photo} onChange={setPhoto} />
         <div className="btn-pair">
-          <button type="button" className="btn btn-soft">
-            <Camera size={18} aria-hidden /> Photo
-          </button>
           <button
             className="btn btn-primary btn-grow"
             disabled={!cat || !text.trim()}
             onClick={() => {
-              store.addIssue({ category: cat!, site: where, screen: lastScreen, text: text.trim() });
+              store.addIssue({ category: cat!, site: where, screen: lastScreen, text: text.trim(), photo });
               setCat(null);
               setText("");
+              setPhoto(undefined);
             }}
           >
             Send report
@@ -81,6 +83,12 @@ export default function Report({ lastScreen }: { lastScreen: string }) {
             {i.resolution && <span className="reply">{i.resolution}</span>}
             <span className="row-sub">
               {site(i.site).short} · {i.screen} · {i.at}
+              {i.hasPhoto && (
+                <>
+                  {" · "}
+                  <ImageIcon size={13} className="inline-icon" aria-hidden /> photo
+                </>
+              )}
             </span>
           </div>
         ))}

@@ -77,7 +77,7 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
 
     saveCount(e: Omit<CountEntry, "id" | "by" | "at" | "synced">) {
       const existing = counts.find((c) => lineKey(c) === lineKey({ ...e, by: me }));
-      const full: CountEntry = { ...e, id: existing?.id ?? newId(), by: me, at: now(), synced: online };
+      const full: CountEntry = { ...e, id: existing?.id ?? newId(), by: me, at: now(), synced: online, hasPhoto: !!e.photo || existing?.hasPhoto };
       setCounts((cs) => [...cs.filter((c) => c.id !== full.id), full]);
       if (online) persist(source.saveCount(full), e.outturn, () => markSynced(full.id, false));
       if (e.recount) {
@@ -140,9 +140,21 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
 
     addIssue(i: Omit<Issue, "id" | "by" | "at" | "status">) {
       const id = `C-${120 + issues.length}`;
-      const full: Issue = { ...i, id, by: me, at: `Today, ${now()}`, status: "Open" };
+      const full: Issue = { ...i, id, by: me, at: `Today, ${now()}`, status: "Open", hasPhoto: !!i.photo };
       setIssues((xs) => [full, ...xs]);
-      persist(source.addIssue(full), "your report", () => setIssues((xs) => xs.filter((x) => x.id !== id)));
+      persist(
+        source.addIssue(full).catch((e: unknown) => {
+          // Report saved, photo not: keep the report, say what happened.
+          if (e instanceof Error && e.name === "PhotoNotSaved") {
+            setIssues((xs) => xs.map((x) => (x.id === id ? { ...x, hasPhoto: false } : x)));
+            flash(e.message);
+            return;
+          }
+          throw e;
+        }),
+        "your report",
+        () => setIssues((xs) => xs.filter((x) => x.id !== id)),
+      );
       flash(`Problem ${id} sent to the stock take lead.`);
     },
   };

@@ -135,4 +135,7 @@ export interface Issue {
   at: string;
   status: "Open" | "In progress" | "Resolved";
   resolution?: string;
+  /** Photo sent with the report (only while sending). */
+  photo?: import("./photo").Photo;
+  hasPhoto?: boolean;
 }

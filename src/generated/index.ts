@@ -4,6 +4,7 @@
  */
 
 // Models
+export * as AnnotationsModel from './models/AnnotationsModel';
 export * as CommonModels from './models/CommonModels';
 export * as Stk_assignmentsModel from './models/Stk_assignmentsModel';
 export * as Stk_countlinesModel from './models/Stk_countlinesModel';
@@ -20,6 +21,7 @@ export * as Stk_xbslinesModel from './models/Stk_xbslinesModel';
 export * as SystemusersModel from './models/SystemusersModel';
 
 // Services
+export * from './services/AnnotationsService';
 export * from './services/Stk_assignmentsService';
 export * from './services/Stk_countlinesService';
 export * from './services/Stk_countsheetsService';

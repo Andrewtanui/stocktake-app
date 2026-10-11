@@ -78,6 +78,11 @@
           "entitySetName": "systemusers",
           "logicalName": "systemuser",
           "isHidden": false
+        },
+        "notes": {
+          "entitySetName": "annotations",
+          "logicalName": "annotation",
+          "isHidden": false
         }
       },
       "environmentVariableName": ""

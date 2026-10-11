@@ -17,6 +17,7 @@ import type { IGetAllOptions } from "../../generated/models/CommonModels";
 import { Stk_assignmentsService } from "../../generated/services/Stk_assignmentsService";
 import { Stk_countlinesService } from "../../generated/services/Stk_countlinesService";
 import { Stk_countsheetsService } from "../../generated/services/Stk_countsheetsService";
+import { AnnotationsService } from "../../generated/services/AnnotationsService";
 import { Stk_issuesService } from "../../generated/services/Stk_issuesService";
 import { Stk_packtypesService } from "../../generated/services/Stk_packtypesService";
 import { Stk_recountsService } from "../../generated/services/Stk_recountsService";
@@ -35,6 +36,7 @@ import { Stk_stocktakesstk_status, Stk_stocktakesstk_type } from "../../generate
 import type { Reference } from "../repository";
 import type { Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, VarianceReason, XbsLine } from "../types";
 import type { CountEntry, CounterData, DataSource, StackState, TpStack } from "./types";
+import type { Photo } from "../photo";
 import { bags60, kgOf, unitsOf } from "../../shared/count-rules";
 
 /* ---------- helpers ---------- */
@@ -113,12 +115,37 @@ async function names(ids: (string | undefined)[]) {
   return map;
 }
 
+/**
+ * The signed-in user's Dataverse id. The Power Apps web player passes it
+ * directly; the mobile player may pass only the Entra object id or the
+ * sign-in name, so look the user up by those.
+ */
+async function signedInUser(): Promise<{ id: string; fullName?: string }> {
+  const { user } = await getContext();
+  if (user.systemUserId) return { id: user.systemUserId, fullName: user.fullName };
+  const esc = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const tries = [
+    user.objectId && `azureactivedirectoryobjectid eq ${user.objectId}`,
+    user.userPrincipalName && `domainname eq ${esc(user.userPrincipalName)}`,
+    user.userPrincipalName && `internalemailaddress eq ${esc(user.userPrincipalName)}`,
+  ].filter(Boolean) as string[];
+  for (const filter of tries) {
+    const r = await SystemusersService.getAll({ select: ["systemuserid", "fullname"], filter: `${filter} and isdisabled eq false`, top: 1 });
+    const u = r.success ? r.data?.[0] : undefined;
+    if (u) return { id: u.systemuserid, fullName: u.fullname ?? user.fullName };
+  }
+  throw new Error(
+    user.userPrincipalName || user.objectId
+      ? `${user.userPrincipalName ?? "Your account"} isn't a user in this Dataverse environment yet. Ask IT to add you and give you a stock take role.`
+      : "Power Apps didn't say who's signed in. Open the app from Power Apps (Local Play or the published app).",
+  );
+}
+
 /* ---------- load ---------- */
 
 async function load(): Promise<CounterData> {
-  const ctx = await getContext();
-  s.me = ctx.user.systemUserId ?? "";
-  if (!s.me) throw new Error("Power Apps didn't say who's signed in. Open the app from Power Apps (Local Play or the published app).");
+  const me = await signedInUser();
+  s.me = me.id;
 
   const live = code(Stk_stocktakesstk_status, "Count in progress");
   const [stockTake] = await all(
@@ -302,7 +329,15 @@ async function load(): Promise<CounterData> {
   );
 
   const who = await names([s.me, ...countRows.map((c) => c._createdby_value), ...stacks.map((x) => x._stk_submittedby_value), ...recountRows.map((r) => r._createdby_value)]);
-  s.myName = who.get(s.me) ?? ctx.user.fullName ?? "You";
+  s.myName = who.get(s.me) ?? me.fullName ?? "You";
+
+  // Which of my lines and reports already carry a photo (no picture bytes loaded).
+  const photoRows = await all(
+    (o) => AnnotationsService.getAll(o),
+    { select: ["_objectid_value"], filter: `_createdby_value eq ${s.me} and isdocument eq true` },
+    "check your photos",
+  );
+  const withPhoto = new Set(photoRows.map((r) => r._objectid_value));
 
   const counts: CountEntry[] = countRows.map((c) => {
     const where = s.stackKey.get(c._stk_stack_value!);
@@ -329,6 +364,7 @@ async function load(): Promise<CounterData> {
       other: c.stk_isother || undefined,
       reference: c.stk_reference ?? undefined,
       recount: recountName,
+      hasPhoto: withPhoto.has(c.stk_countlineid) || undefined,
     };
   });
 
@@ -367,6 +403,7 @@ async function load(): Promise<CounterData> {
     at: `${day(i.createdon)}, ${hhmm(i.createdon)}`,
     status: (label(Stk_issuesstk_status, i.stk_status) ?? "Open") as Issue["status"],
     resolution: i.stk_resolution ?? undefined,
+    hasPhoto: withPhoto.has(i.stk_issueid) || undefined,
   }));
 
   return {
@@ -424,6 +461,41 @@ async function ensureStack(site: SiteCode, name: string, landmark?: string): Pro
   return id;
 }
 
+/* ---------- photos (Dataverse Notes on the count line / problem report) ---------- */
+
+/** The record was saved; only its photo failed. */
+export class PhotoNotSaved extends Error {
+  name = "PhotoNotSaved";
+}
+
+const PHOTO_SUBJECT = { stk_countline: "Photo of the tag", stk_issue: "Photo of the problem" } as const;
+const photoSent = new Map<string, string>(); // record id → preview already uploaded
+
+/** One photo per record: a new photo replaces the earlier one. */
+async function savePhoto(table: keyof typeof PHOTO_SUBJECT, set: string, recordId: string, photo: Photo) {
+  if (photoSent.get(recordId) === photo.preview) return; // a re-send of the same line
+  const fields = {
+    subject: PHOTO_SUBJECT[table],
+    isdocument: true,
+    filename: photo.name,
+    mimetype: photo.mime,
+    documentbody: photo.base64,
+  };
+  const [old] = await all(
+    (o) => AnnotationsService.getAll(o),
+    { select: ["annotationid"], filter: `_objectid_value eq ${recordId} and subject eq ${quote(PHOTO_SUBJECT[table])}`, top: 1 },
+    "check the photo",
+  );
+  const res = old
+    ? await AnnotationsService.update(old.annotationid, fields as never)
+    : await AnnotationsService.create({ ...fields, [`objectid_${table}@odata.bind`]: bind(set, recordId) } as never);
+  if (!res.success) {
+    console.error("photo save failed", { table, recordId, size: photo.base64.length, error: res.error });
+    throw new Error(res.error?.message || "the photo service didn't accept it");
+  }
+  photoSent.set(recordId, photo.preview);
+}
+
 async function saveCount(e: CountEntry) {
   const sheet = await ensureSheet();
   const stack = await ensureStack(e.site, e.stack);
@@ -466,8 +538,10 @@ async function saveCount(e: CountEntry) {
   if (id) unwrap(await Stk_countlinesService.update(id, fields as never), `update ${e.outturn}`);
   else {
     const created = unwrap(await Stk_countlinesService.create({ ...fields, statecode: 0 } as never), `save ${e.outturn}`);
-    s.countLineId.set(e.id, created.stk_countlineid);
+    id = created.stk_countlineid;
+    s.countLineId.set(e.id, id);
   }
+  if (e.photo) await savePhoto("stk_countline", "stk_countlines", id, e.photo);
 }
 
 /** kg / 60 kg equivalents for a count — the shared count rules, with pack sizes loaded at start-up. */
@@ -514,7 +588,7 @@ async function completeRecount(name: string) {
 }
 
 async function addIssue(i: Issue) {
-  unwrap(
+  const created = unwrap(
     await Stk_issuesService.create({
       stk_name: i.id,
       statecode: 0,
@@ -526,6 +600,19 @@ async function addIssue(i: Issue) {
     } as never),
     "send your report",
   );
+  if (!i.photo) return;
+  // The report is saved; a photo problem must not make it look unsent.
+  try {
+    let id = created?.stk_issueid;
+    if (!id) {
+      const [row] = await all((o) => Stk_issuesService.getAll(o), { select: ["stk_issueid"], filter: `stk_name eq ${quote(i.id)}`, top: 1 }, "find your report");
+      id = row?.stk_issueid;
+    }
+    if (!id) throw new Error("the new report could not be found to attach it to");
+    await savePhoto("stk_issue", "stk_issues", id, i.photo);
+  } catch (e) {
+    throw new PhotoNotSaved(`Report ${i.id} was sent, but the photo didn't upload: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** One load at a time (React's development double-mount, quick reloads). */

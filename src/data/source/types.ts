@@ -5,6 +5,7 @@
 import type { Reference } from "../repository";
 import type { Issue, RecountTask, SiteCode, StockCategory, VarianceReason } from "../types";
 import type { Qty } from "../../shared/count-rules";
+import type { Photo } from "../photo";
 
 export interface CountEntry extends Qty {
   /** Made on the phone; the Dataverse alternate key, so a re-sent save updates instead of duplicating. */
@@ -28,6 +29,10 @@ export interface CountEntry extends Qty {
   /** Direct purchases: contract or delivery note the bags arrived on. */
   reference?: string;
   recount?: string;
+  /** A new photo of the tag, waiting to be sent with this line. */
+  photo?: Photo;
+  /** A photo is already stored for this line. */
+  hasPhoto?: boolean;
 }
 
 export interface StackState {

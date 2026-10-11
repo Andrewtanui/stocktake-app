@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Camera, ChevronDown, EyeOff, PackageSearch, Shuffle, TriangleAlert, Users } from "lucide-react";
+import { ChevronDown, EyeOff, PackageSearch, Shuffle, TriangleAlert, Users } from "lucide-react";
 import { useNav } from "../App";
 import { bags60, kgOf, pocketProblem, unitsOf, withPocket, type Qty } from "../data/calc";
 import {
@@ -17,6 +17,8 @@ import {
 import { useStore } from "../data/store";
 import type { PackType, SiteCode, StockCategory, VarianceReason } from "../data/types";
 import { ActionBar, Notice, PageHead, Pill, Segmented, Stepper, n } from "../ui/kit";
+import { PhotoField } from "../ui/PhotoField";
+import type { Photo } from "../data/photo";
 
 // Blind counting: counters never see XBS quantities or whether their count
 // matches. If they could, a count of 101 bags could be "corrected" to the 133
@@ -72,6 +74,7 @@ export default function CountLot({
   );
   const [reason, setReason] = useState<VarianceReason | undefined>(mine?.reason ?? (isFound ? "Bags moved here, not yet received in XBS" : undefined));
   const [note, setNote] = useState(mine?.note ?? "");
+  const [photo, setPhoto] = useState<Photo | undefined>(task ? undefined : mine?.photo);
   const [more, setMore] = useState(false);
   const [unusual, setUnusual] = useState(!!mine?.reason);
 
@@ -99,6 +102,7 @@ export default function CountLot({
       ...q,
       reason,
       note: note.trim() || undefined,
+      photo,
       found: isFound || undefined,
       recount,
     });
@@ -237,9 +241,7 @@ export default function CountLot({
               <span className="label">Note for the supervisor</span>
               <textarea className="input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Torn bags, re-stacked, tag faded…" />
             </label>
-            <button type="button" className="btn btn-soft">
-              <Camera size={18} aria-hidden /> Photo of the tag
-            </button>
+            <PhotoField label="Photo of the tag" name={`${outturn} ${stack}`} value={photo} saved={!task && mine?.hasPhoto} onChange={setPhoto} />
             {lot && !blind && (
               <dl className="kv">
                 <dt>Batch</dt>
