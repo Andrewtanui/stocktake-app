@@ -68,7 +68,7 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
           <Segmented<PackType["id"]> label="Bag size" value={q.pack} onChange={(v) => set({ pack: v })} options={PACK_TYPES.map((p) => [p.id, `${p.kg} kg jute`])} />
         </div>
         <Stepper id="o-bags" label="Full bags" value={q.bags} onChange={(v) => set({ bags: v })} />
-        <Stepper id="o-pk" size="md" label="Pocket weight (kg)" value={q.pocketKg} onChange={(v) => set(withPocket(q, Math.round(v * 10) / 10))} decimal hint="One odd bag · 0 if none" />
+        <Stepper id="o-pk" size="md" label="Pocket weight (kg)" value={q.pocketKg} onChange={(v) => set(withPocket(q, Math.round(v)))} hint="One odd bag, whole kg · 0 if none" />
         {problem && (
           <p className="hint hint-crit" role="alert">
             <TriangleAlert size={15} aria-hidden /> {problem}

@@ -190,9 +190,8 @@ export default function CountLot({
           size="md"
           label="Pocket weight (kg)"
           value={q.pocketKg}
-          onChange={(v) => set(withPocket(q, Math.round(v * 10) / 10))}
-          decimal
-          hint="One odd bag · 0 if none"
+          onChange={(v) => set(withPocket(q, Math.round(v)))}
+          hint="One odd bag, whole kg · 0 if none"
         />
 
         {problem && (
