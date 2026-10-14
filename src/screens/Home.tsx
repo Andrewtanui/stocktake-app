@@ -8,6 +8,9 @@ import { Code, Ring, Row, Section, StatusIcon, n } from "../ui/kit";
 
 const SHOW = 8;
 
+/** By the phone's clock: morning until noon, afternoon until 17:00, then evening. */
+const greeting = (h = new Date().getHours()) => (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+
 export default function Home() {
   const go = useNav();
   const who = useWho();
@@ -42,7 +45,9 @@ export default function Home() {
     <div className="page">
       <header className="greeting">
         <p className="eyebrow">{STOCK_TAKE.countDate}</p>
-        <h1 className="title">Good morning, {who.name.split(" ")[0]}</h1>
+        <h1 className="title">
+          {greeting()}, {who.name.split(" ")[0]}
+        </h1>
         <p className="subtitle">Ibero Export Warehouse · rows {rows}</p>
       </header>
 
