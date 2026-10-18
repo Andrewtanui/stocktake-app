@@ -134,12 +134,12 @@ export default function CountLot({
           {task!.why}
         </Notice>
       )}
-      {theirs && (
+      {theirs && !task && (
         <Notice tone="crit" icon={<Users size={18} />} title={`${theirs.by} already counted this lot`}>
           At {theirs.at}. Only count again if they asked you to check.
         </Notice>
       )}
-      {!theirs && countedElsewhere.length > 0 && (
+      {!theirs && !task && countedElsewhere.length > 0 && (
         <Notice tone="warn" icon={<Shuffle size={18} />} title="Already counted elsewhere">
           {countedElsewhere.map((c) => `${c.stack} by ${c.by === store.me ? "you" : c.by}`).join(", ")}. Count only the bags here.
         </Notice>

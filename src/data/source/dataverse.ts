@@ -34,10 +34,11 @@ import { Stk_recountsstk_status } from "../../generated/models/Stk_recountsModel
 import { Stk_stacksstk_status } from "../../generated/models/Stk_stacksModel";
 import { Stk_stocktakesstk_status, Stk_stocktakesstk_type } from "../../generated/models/Stk_stocktakesModel";
 import type { Reference } from "../repository";
-import type { Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, VarianceReason, XbsLine } from "../types";
+import type { Assignment, Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, VarianceReason, XbsLine } from "../types";
 import type { CountEntry, CounterData, DataSource, StackState, TpStack } from "./types";
 import type { Photo } from "../photo";
 import { bags60, kgOf, unitsOf } from "../../shared/count-rules";
+import { parseSection, sectionList, sectionRows, sectionWords } from "../../shared/sections";
 
 /* ---------- helpers ---------- */
 
@@ -84,9 +85,10 @@ const s = {
   me: "",
   myName: "",
   stockTakeId: "",
-  assignmentId: "",
-  assignedSiteId: "",
-  sheetId: "" as string | undefined,
+  /** My active assignments (one per warehouse); the first is the fallback for counts elsewhere. */
+  assignments: [] as { id: string; siteId: string }[],
+  /** assignment id → my count sheet for it */
+  sheetId: new Map<string, string>(),
   siteId: new Map<SiteCode, string>(),
   siteCode: new Map<string, SiteCode>(),
   packId: new Map<string, string>(),
@@ -169,14 +171,16 @@ async function load(): Promise<CounterData> {
   }
   s.stockTakeId = stockTake.stk_stocktakeid;
 
-  const [assignment] = await all(
+  // Every active area I'm allocated (the Hub's allocation gives one per warehouse; replaced ones are inactive).
+  const assignmentRows = await all(
     (o) => Stk_assignmentsService.getAll(o),
-    { select: ["stk_assignmentid", "stk_name", "stk_rows", "_stk_site_value"], filter: `_stk_stocktake_value eq ${s.stockTakeId} and _stk_counter_value eq ${s.me}`, top: 1 },
+    {
+      select: ["stk_assignmentid", "stk_name", "stk_rows", "stk_sections", "_stk_site_value"],
+      filter: `_stk_stocktake_value eq ${s.stockTakeId} and _stk_counter_value eq ${s.me} and statecode eq 0`,
+    },
     "find your assignment",
   );
-  if (!assignment) throw new Error(`You're not assigned to "${stockTake.stk_name}" yet. Ask Operations to assign you an area.`);
-  s.assignmentId = assignment.stk_assignmentid;
-  s.assignedSiteId = assignment._stk_site_value!;
+  if (!assignmentRows.length) throw new Error(`You're not assigned to "${stockTake.stk_name}" yet. Ask Operations to assign you an area.`);
 
   const [siteRows, packRows, importRow] = await Promise.all([
     all((o) => Stk_sitesService.getAll(o), { select: ["stk_siteid", "stk_code", "stk_name", "stk_shortname", "stk_isthirdparty", "stk_manualentry"], orderBy: ["stk_isthirdparty asc", "stk_name asc"] }, "read warehouses"),
@@ -254,8 +258,23 @@ async function load(): Promise<CounterData> {
     if (!s.batchLine.has(l.b)) s.batchLine.set(l.b, r.stk_xbslineid);
   });
 
-  const assignedSite = s.siteCode.get(assignment._stk_site_value!) ?? "IBR";
-  const rows = (assignment.stk_rows ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const shortOf = (c: SiteCode) => sites.find((x) => x.code === c)?.short ?? c;
+  const assignments: (Assignment & { id: string; siteId: string })[] = assignmentRows
+    .map((a) => {
+      const site = s.siteCode.get(a._stk_site_value!) ?? "IBR";
+      const sections = site === "IBR" ? sectionList(a.stk_sections) : [];
+      const rows = sections.length
+        ? [...new Set(sections.filter((t) => !parseSection(t)?.between).flatMap(sectionRows))]
+        : (a.stk_rows ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      const where = sections.length
+        ? sections.map(sectionWords).join("; ").replace(/Row /g, "row ").replace(/Between/g, "between")
+        : rows.length
+          ? `rows ${rows.join(" and ")}`
+          : "whole site";
+      return { id: a.stk_assignmentid, siteId: a._stk_site_value!, site, rows, sections, label: `${shortOf(site)} ${where}` };
+    })
+    .sort((a, b) => Number(a.site !== "IBR") - Number(b.site !== "IBR") || a.site.localeCompare(b.site));
+  s.assignments = assignments.map((a) => ({ id: a.id, siteId: a.siteId }));
   const reference: Reference = {
     stockTake: {
       id: s.stockTakeId,
@@ -268,11 +287,7 @@ async function load(): Promise<CounterData> {
     sites,
     packTypes,
     lines,
-    assignment: {
-      site: assignedSite,
-      rows,
-      label: `${sites.find((x) => x.code === assignedSite)?.short ?? assignedSite} ${rows.length ? `rows ${rows.join(" and ")}` : "whole site"}`,
-    },
+    assignments: assignments.map(({ site, rows, sections, label }) => ({ site, rows, sections, label })),
   };
 
   /* working state */
@@ -281,7 +296,10 @@ async function load(): Promise<CounterData> {
     { select: ["stk_countsheetid", "_stk_assignment_value", "_createdby_value"], filter: `_stk_stocktake_value eq ${s.stockTakeId}` },
     "read count sheets",
   );
-  s.sheetId = sheets.find((x) => x._stk_assignment_value === s.assignmentId && x._createdby_value === s.me)?.stk_countsheetid;
+  for (const a of s.assignments) {
+    const mine = sheets.find((x) => x._stk_assignment_value === a.id && x._createdby_value === s.me);
+    if (mine) s.sheetId.set(a.id, mine.stk_countsheetid);
+  }
 
   const stacks = await all(
     (o) => Stk_stacksService.getAll(o),
@@ -382,7 +400,7 @@ async function load(): Promise<CounterData> {
     const where = s.stackKey.get(r._stk_stack_value!);
     return {
       id: r.stk_name,
-      site: where?.site ?? assignedSite,
+      site: where?.site ?? assignments[0].site,
       stack: where?.name ?? "",
       batch: r.stk_batch ?? "",
       outturn: r.stk_outturn ?? "",
@@ -396,7 +414,7 @@ async function load(): Promise<CounterData> {
   const issues: Issue[] = issueRows.map((i) => ({
     id: i.stk_name,
     category: (label(Stk_issuesstk_category, i.stk_category) ?? "Other") as IssueCategory,
-    site: s.siteCode.get(i._stk_site_value!) ?? assignedSite,
+    site: s.siteCode.get(i._stk_site_value!) ?? assignments[0].site,
     screen: i.stk_screen ?? "",
     text: i.stk_description ?? "",
     by: s.myName,
@@ -425,19 +443,22 @@ function chunks<T>(xs: T[], n: number) {
 
 /* ---------- writes ---------- */
 
-/** My count sheet for this stock take — created on first use. */
-async function ensureSheet(): Promise<string> {
-  if (s.sheetId) return s.sheetId;
+/** My count sheet for this site's assignment (or my first one, if I count somewhere else) — created on first use. */
+async function ensureSheet(site: SiteCode): Promise<string> {
+  const a = s.assignments.find((x) => x.siteId === s.siteId.get(site)) ?? s.assignments[0];
+  const known = s.sheetId.get(a.id);
+  if (known) return known;
   const created = await Stk_countsheetsService.create({
     stk_name: `CS-${Date.now().toString(36).toUpperCase()}`,
     statecode: 0,
     stk_status: code(Stk_countsheetsstk_status, "In progress"),
     "stk_stocktake@odata.bind": bind("stk_stocktakes", s.stockTakeId),
-    "stk_assignment@odata.bind": bind("stk_assignments", s.assignmentId),
-    "stk_site@odata.bind": bind("stk_sites", s.assignedSiteId),
+    "stk_assignment@odata.bind": bind("stk_assignments", a.id),
+    "stk_site@odata.bind": bind("stk_sites", a.siteId),
   } as never);
-  s.sheetId = unwrap(created, "start your count sheet").stk_countsheetid;
-  return s.sheetId;
+  const id = unwrap(created, "start your count sheet").stk_countsheetid;
+  s.sheetId.set(a.id, id);
+  return id;
 }
 
 /** The stack row for a site + stack name — created on first use. */
@@ -445,7 +466,7 @@ async function ensureStack(site: SiteCode, name: string, landmark?: string): Pro
   const k = `${site}|${name}`;
   const known = s.stackId.get(k);
   if (known) return known;
-  const sheet = await ensureSheet();
+  const sheet = await ensureSheet(site);
   const created = await Stk_stacksService.create({
     stk_name: name,
     statecode: 0,
@@ -497,7 +518,7 @@ async function savePhoto(table: keyof typeof PHOTO_SUBJECT, set: string, recordI
 }
 
 async function saveCount(e: CountEntry) {
-  const sheet = await ensureSheet();
+  const sheet = await ensureSheet(e.site);
   const stack = await ensureStack(e.site, e.stack);
   const xbsLine = e.other ? undefined : (s.lotLine.get(lotKey(e.site, e.stack, e.batch)) ?? s.batchLine.get(e.batch));
   const pack = s.packId.get(e.pack);
@@ -563,7 +584,7 @@ async function submitStack(site: SiteCode, stack: string, comment: string) {
     `submit ${stack}`,
   );
   // The sheet is what the supervisor approves: mark it submitted with fresh totals.
-  const sheet = await ensureSheet();
+  const sheet = await ensureSheet(site);
   const lines = await all((o) => Stk_countlinesService.getAll(o), { select: ["stk_bags"], filter: `_stk_countsheet_value eq ${sheet}` }, "total your sheet");
   unwrap(
     await Stk_countsheetsService.update(sheet, {

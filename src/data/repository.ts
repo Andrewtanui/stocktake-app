@@ -4,6 +4,7 @@
 // the JSON or call Dataverse directly.
 
 import { defaultPackCode } from "../shared/count-rules";
+import { parseSection, zoneInSections } from "../shared/sections";
 import type {
   Assignment,
   PackType,
@@ -21,7 +22,8 @@ export interface Reference {
   sites: Site[];
   packTypes: PackType[];
   lines: XbsLine[];
-  assignment: Assignment;
+  /** My areas in this stock take: one per warehouse, Ibero first. */
+  assignments: Assignment[];
 }
 
 // Live ES-module bindings: importers see the values set by setReference().
@@ -29,15 +31,49 @@ let lines: XbsLine[] = [];
 export let STOCK_TAKE: StockTake;
 export let SITES: Site[] = [];
 export let PACK_TYPES: PackType[] = [];
-export let ASSIGNMENT: Assignment;
+export let ASSIGNMENTS: Assignment[] = [];
 
 export function setReference(r: Reference) {
   lines = r.lines;
   STOCK_TAKE = r.stockTake;
   SITES = r.sites;
   PACK_TYPES = r.packTypes;
-  ASSIGNMENT = r.assignment;
+  ASSIGNMENTS = r.assignments;
 }
+
+/* ---------- my areas ---------- */
+
+/** My Ibero assignment, if I count at Ibero. */
+export const iberoAssignment = () => ASSIGNMENTS.find((a) => a.site === "IBR");
+/** Third-party sites I'm assigned to. */
+export const mySites = () => ASSIGNMENTS.filter((a) => a.site !== "IBR").map((a) => a.site);
+/** "Ibero row D, bays 1–7 · AGL whole site" */
+export const myAreaWords = () => ASSIGNMENTS.map((a) => a.label).join(" · ");
+
+/**
+ * Is this Ibero stack mine? With sections (random allocation) a stack is mine when
+ * its first bay is in one of my sections, so a stack between two rows has one
+ * counter. Older assignments by whole rows show it to the counters of both rows.
+ */
+export function isMyStack(z: string) {
+  const a = iberoAssignment();
+  if (!a) return false;
+  return a.sections.length ? zoneInSections(z, a.sections) : zoneRows(z).some((r) => a.rows.includes(r));
+}
+
+/** Is this floor-map bay in my area (stacks between rows are marked through isMyStack)? */
+export function isMyBay(row: string, bay: number) {
+  const a = iberoAssignment();
+  if (!a) return false;
+  if (!a.sections.length) return a.rows.includes(row);
+  return a.sections.some((t) => {
+    const s = parseSection(t);
+    return !!s && !s.between && s.row === row && bay >= s.bayFrom && bay <= s.bayTo;
+  });
+}
+
+/** Rows I count in (highlighted on the floor map). */
+export const myRows = () => iberoAssignment()?.rows ?? [];
 
 export const site = (c: SiteCode) => SITES.find((s) => s.code === c)!;
 
@@ -172,6 +208,16 @@ export function iberoGrid(): ZoneCell[] {
   return [...cells.values()];
 }
 
+/** My Ibero stacks, by row and bay. */
+export function myStacks() {
+  return [...new Set(linesAt("IBR").map((l) => l.z!).filter((z) => z && parseZone(z) && isMyStack(z)))].sort((a, b) => {
+    const pa = parseZone(a)!;
+    const pb = parseZone(b)!;
+    return pa.row.localeCompare(pb.row) || pa.bay - pb.bay || a.localeCompare(b);
+  });
+}
+
+/** Ibero stacks touching these rows (stacks between two rows count for both). */
 export function zonesInRows(rows: string[]) {
   return [...new Set(linesAt("IBR").map((l) => l.z!).filter((z) => zoneRows(z).some((r) => rows.includes(r))))].sort((a, b) => {
     const pa = parseZone(a)!;

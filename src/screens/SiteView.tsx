@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Lock, MapPin, MapPinOff, Plus, Search } from "lucide-react";
 import { useNav } from "../App";
-import { ASSIGNMENT, bayCode, gridCode, iberoGrid, linesAt, parseZone, readLocation, site, zoneWords } from "../data/repository";
+import { bayCode, gridCode, iberoAssignment, iberoGrid, isMyBay, isMyStack, linesAt, myRows, parseZone, readLocation, site, zoneWords } from "../data/repository";
 import { useStore } from "../data/store";
 import type { SiteCode, StackStatus, ZoneCell } from "../data/types";
 import { Code, Notice, PageHead, Pill, Row, STATUS_LABEL, Section, Sheet, StatusIcon, n } from "../ui/kit";
@@ -61,7 +61,7 @@ function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
           ))}
           {"ABCDEFG".split("").map((r) => (
             <div className="floor-row" role="row" key={r}>
-              <div className={"floor-rowlabel" + (ASSIGNMENT.rows.includes(r) ? " mine" : "")}>{r}</div>
+              <div className={"floor-rowlabel" + (myRows().includes(r) ? " mine" : "")}>{r}</div>
               {cells
                 .filter((c) => c.row === r)
                 .map((c) => {
@@ -72,7 +72,7 @@ function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
                       role="gridcell"
                       className={
                         `cell s-${st}` +
-                        (ASSIGNMENT.rows.includes(r) ? " cell-mine" : "") +
+                        (isMyBay(r, c.bay) || c.zones.some(isMyStack) ? " cell-mine" : "") +
                         (c.between?.up ? " between-up" : "") +
                         (c.between?.down ? " between-down" : "")
                       }
@@ -113,7 +113,9 @@ function FloorMap({ back }: { back: { label: string; onClick: () => void } }) {
                 title={<Code>{z}</Code>}
                 sub={zoneWords(z)}
                 trail={
-                  p?.between ? (
+                  p?.between && iberoAssignment() && !isMyStack(z) ? (
+                    <Pill>Another counter's</Pill>
+                  ) : p?.between ? (
                     <Pill tone="warn">
                       Between {p.row} &amp; {p.rowTo}
                     </Pill>

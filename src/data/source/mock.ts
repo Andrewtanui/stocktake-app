@@ -29,7 +29,12 @@ const REFERENCE: Reference = {
     { id: "JUTE50", label: "50 kg jute bag", kg: 50, hint: "Light coffee fills a bag at 50 kg", gradePattern: "LIGHT" },
   ],
   lines: raw as XbsLine[],
-  assignment: { site: "IBR", rows: ["D", "E"], label: "Ibero rows D and E" },
+  // As the Hub's allocation publishes it: rows D and E plus the stacks between them;
+  // stacks between C and D or E and F belong to other counters. Plus a third-party site.
+  assignments: [
+    { site: "IBR", rows: ["D", "E"], sections: ["D", "E", "D/E"], label: "Ibero rows D and E, between D and E" },
+    { site: "AGL", rows: [], sections: [], label: "AGL whole site" },
+  ],
 };
 
 const TEAMMATE = "Brian K.";

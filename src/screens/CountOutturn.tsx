@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lock, MapPin, PackageSearch, Search, TriangleAlert } from "lucide-react";
 import { useNav } from "../App";
-import { ASSIGNMENT, allLines, closestOutturn, groupByBatch, iberoLocationsOf, linesAt, locationCode, site, zoneRows, zoneWords, type Lot } from "../data/repository";
+import { allLines, closestOutturn, groupByBatch, iberoAssignment, iberoLocationsOf, isMyStack, linesAt, locationCode, site, zoneWords, type Lot } from "../data/repository";
 import { useStore } from "../data/store";
 import { Code, Notice, PageHead, Pill, Row, Section, Stepper } from "../ui/kit";
 
@@ -39,7 +39,8 @@ export default function CountOutturn() {
     const state = (stack: string) => store.stackState("IBR", stack)?.state;
     const closed = (stack: string) => state(stack) === "submitted" || state(stack) === "approved";
     const counted = (stack: string) => !!picked.lot && !!store.entry("IBR", stack, picked.lot.batch);
-    const outside = (stack: string) => !zoneRows(stack).some((r) => ASSIGNMENT.rows.includes(r));
+    const outside = (stack: string) => !isMyStack(stack);
+    const area = iberoAssignment()?.label.replace(/^\S+ /, "") ?? "none at Ibero";
 
     return (
       <div className="page">
@@ -104,7 +105,7 @@ export default function CountOutturn() {
             )}
             {typed && !closed(typed) && outside(typed) && (
               <p className="hint hint-warn">
-                <TriangleAlert size={15} aria-hidden /> Not in your rows ({ASSIGNMENT.rows.join(", ")}). Count it only if it's really here.
+                <TriangleAlert size={15} aria-hidden /> Not in your area ({area}). Count it only if it's really here.
               </p>
             )}
             <button className="btn btn-primary btn-lg btn-block" disabled={!typed || closed(typed)} onClick={() => typed && count(typed)}>

@@ -5,7 +5,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { kgOf, unitsOf } from "./calc";
-import { ASSIGNMENT, setReference } from "./repository";
+import { isMyStack, setReference } from "./repository";
 import { getSource, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./source";
 import type { Issue, SiteCode, StackStatus } from "./types";
 import { LoadError, Splash } from "../ui/Splash";
@@ -115,7 +115,7 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
       if (st) return "done";
       if (es.length) return "active";
       // Demo only: in mock mode other teams finished rows A–C this morning.
-      if (source.kind === "mock" && site === "IBR" && !ASSIGNMENT.rows.includes(stack[0]) && "ABC".includes(stack[0])) return "done";
+      if (source.kind === "mock" && site === "IBR" && !isMyStack(stack) && "ABC".includes(stack[0])) return "done";
       return "todo";
     },
 

@@ -101,6 +101,8 @@ export interface Assignment {
   site: SiteCode;
   /** Ibero rows, e.g. ["D", "E"]; empty for whole-site assignments at third parties. */
   rows: string[];
+  /** Ibero sections from the Hub's allocation, e.g. ["D1-7", "C/D"] (see shared/sections.ts). Empty = whole rows. */
+  sections: string[];
   label: string;
 }
 
