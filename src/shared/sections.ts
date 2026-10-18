@@ -86,6 +86,32 @@ export function sectionWords(token: string) {
   return whole ? rows : `${rows}, bays ${s.bayFrom}–${s.bayTo}`;
 }
 
+/** Sections in floor order: by row (stacks between two rows after the row above), then by bay. */
+export function sortSections(tokens: string[]) {
+  return [...tokens].sort((a, b) => {
+    const x = parseSection(a);
+    const y = parseSection(b);
+    if (!x || !y) return a.localeCompare(b);
+    return IBERO_ROWS.indexOf(x.row) - IBERO_ROWS.indexOf(y.row) || Number(x.between) - Number(y.between) || x.bayFrom - y.bayFrom;
+  });
+}
+
+/** Plain words for a counter's sections: "rows A, B and G; row D, bays 1–7; between C and D". */
+export function sectionsWords(tokens: string[]) {
+  const ss = sortSections(tokens)
+    .map(parseSection)
+    .filter((x): x is Section => !!x);
+  const whole = (x: Section) => x.bayFrom === 1 && x.bayTo === IBERO_BAYS;
+  const and = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+  const bays = (x: Section) => (whole(x) ? "" : `, bays ${x.bayFrom}–${x.bayTo}`);
+  const rows = ss.filter((x) => !x.between && whole(x)).map((x) => x.row);
+  return [
+    ...(rows.length ? [`${rows.length === 1 ? "row" : "rows"} ${and(rows)}`] : []),
+    ...ss.filter((x) => !x.between && !whole(x)).map((x) => `row ${x.row}${bays(x)}`),
+    ...ss.filter((x) => x.between).map((x) => `between ${x.row} and ${x.rowTo}${bays(x)}`),
+  ].join("; ");
+}
+
 /** The section token for a row (or between-rows pair) and a bay range. */
 export function sectionToken(row: string, rowTo: string, bayFrom = 1, bayTo = IBERO_BAYS) {
   const rows = row === rowTo ? row : `${row}/${rowTo}`;

@@ -32,8 +32,8 @@ const REFERENCE: Reference = {
   // As the Hub's allocation publishes it: rows D and E plus the stacks between them;
   // stacks between C and D or E and F belong to other counters. Plus a third-party site.
   assignments: [
-    { site: "IBR", rows: ["D", "E"], sections: ["D", "E", "D/E"], label: "Ibero rows D and E, between D and E" },
-    { site: "AGL", rows: [], sections: [], label: "AGL whole site" },
+    { site: "IBR", rows: ["D", "E"], sections: ["D", "E", "D/E"], label: "Ibero rows D and E; between D and E" },
+    { site: "AGL", rows: [], sections: [], label: "AGL" },
   ],
 };
 

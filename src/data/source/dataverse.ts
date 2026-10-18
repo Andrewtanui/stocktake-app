@@ -38,7 +38,7 @@ import type { Assignment, Issue, IssueCategory, PackType, RecountTask, Site, Sit
 import type { CountEntry, CounterData, DataSource, StackState, TpStack } from "./types";
 import type { Photo } from "../photo";
 import { bags60, kgOf, unitsOf } from "../../shared/count-rules";
-import { parseSection, sectionList, sectionRows, sectionWords } from "../../shared/sections";
+import { parseSection, sectionList, sectionRows, sectionsWords, sortSections } from "../../shared/sections";
 
 /* ---------- helpers ---------- */
 
@@ -262,16 +262,13 @@ async function load(): Promise<CounterData> {
   const assignments: (Assignment & { id: string; siteId: string })[] = assignmentRows
     .map((a) => {
       const site = s.siteCode.get(a._stk_site_value!) ?? "IBR";
-      const sections = site === "IBR" ? sectionList(a.stk_sections) : [];
+      const sections = site === "IBR" ? sortSections(sectionList(a.stk_sections)) : [];
       const rows = sections.length
         ? [...new Set(sections.filter((t) => !parseSection(t)?.between).flatMap(sectionRows))]
         : (a.stk_rows ?? "").split(",").map((x) => x.trim()).filter(Boolean);
-      const where = sections.length
-        ? sections.map(sectionWords).join("; ").replace(/Row /g, "row ").replace(/Between/g, "between")
-        : rows.length
-          ? `rows ${rows.join(" and ")}`
-          : "whole site";
-      return { id: a.stk_assignmentid, siteId: a._stk_site_value!, site, rows, sections, label: `${shortOf(site)} ${where}` };
+      // "Ibero rows A, B and G" · "AGL" (a third-party site is counted whole)
+      const where = sections.length ? sectionsWords(sections) : rows.length ? `rows ${rows.join(" and ")}` : "";
+      return { id: a.stk_assignmentid, siteId: a._stk_site_value!, site, rows, sections, label: `${shortOf(site)} ${where}`.trim() };
     })
     .sort((a, b) => Number(a.site !== "IBR") - Number(b.site !== "IBR") || a.site.localeCompare(b.site));
   s.assignments = assignments.map((a) => ({ id: a.id, siteId: a.siteId }));

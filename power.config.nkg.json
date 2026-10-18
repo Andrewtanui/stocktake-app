@@ -1,5 +1,6 @@
 {
   "version": "1.0",
+  "appId": "f4369855-d7ae-424c-94ff-b790a89cfedd",
   "appDisplayName": "Stock Take Demo",
   "region": "prod",
   "appType": "CodeApp",
@@ -86,6 +87,5 @@
       },
       "environmentVariableName": ""
     }
-  },
-  "appId": "f4369855-d7ae-424c-94ff-b790a89cfedd"
+  }
 }
