@@ -35,7 +35,7 @@ import { Stk_stacksstk_status } from "../../generated/models/Stk_stacksModel";
 import { Stk_stocktakesstk_status, Stk_stocktakesstk_type } from "../../generated/models/Stk_stocktakesModel";
 import type { Reference } from "../repository";
 import type { Assignment, Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, VarianceReason, XbsLine } from "../types";
-import type { CountEntry, CounterData, DataSource, StackState, TpStack } from "./types";
+import { EMPTY_STACK, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./types";
 import type { Photo } from "../photo";
 import { bags60, kgOf, unitsOf } from "../../shared/count-rules";
 import { parseSection, sectionList, sectionRows, sectionsWords, sortSections } from "../../shared/sections";
@@ -300,7 +300,7 @@ async function load(): Promise<CounterData> {
 
   const stacks = await all(
     (o) => Stk_stacksService.getAll(o),
-    { select: ["stk_stackid", "stk_name", "_stk_site_value", "stk_status", "stk_landmark", "stk_submittedon", "stk_comment", "_stk_submittedby_value"], filter: `_stk_stocktake_value eq ${s.stockTakeId}` },
+    { select: ["stk_stackid", "stk_name", "_stk_site_value", "stk_status", "stk_landmark", "stk_submittedon", "stk_comment", "_stk_submittedby_value", "stk_nothinghere", "stk_sitefinished"], filter: `_stk_stocktake_value eq ${s.stockTakeId}` },
     "read stacks",
   );
   for (const st of stacks) {
@@ -389,7 +389,8 @@ async function load(): Promise<CounterData> {
   for (const st of stacks) {
     const site = s.siteCode.get(st._stk_site_value!)!;
     const state = stateOf[label(Stk_stacksstk_status, st.stk_status) ?? ""];
-    if (state) stackStates[`${site}|${st.stk_name}`] = { state, at: hhmm(st.stk_submittedon), by: who.get(st._stk_submittedby_value!), comment: st.stk_comment ?? undefined };
+    if (state)
+      stackStates[`${site}|${st.stk_name}`] = { state, at: hhmm(st.stk_submittedon), by: who.get(st._stk_submittedby_value!), comment: st.stk_comment ?? undefined, empty: !!st.stk_nothinghere, finished: !!st.stk_sitefinished };
     if (s.thirdParty.has(site)) (tpStacks[site] ??= []).push({ name: st.stk_name, note: st.stk_landmark ?? "" });
   }
 
@@ -599,6 +600,20 @@ async function addTpStack(site: SiteCode, st: TpStack) {
   await ensureStack(site, st.name, st.note || undefined);
 }
 
+/** Every stack at a third-party site is counted: the "Whole site" marker, flagged finished, then submitted. */
+async function finishSite(site: SiteCode) {
+  const id = await ensureStack(site, EMPTY_STACK, "Site finished: every stack counted");
+  unwrap(await Stk_stacksService.update(id, { stk_sitefinished: true } as never), "mark the site finished");
+  await submitStack(site, EMPTY_STACK, "Every stack at the site is counted");
+}
+
+/** Nothing to count at a third-party site: one "Whole site" stack, flagged, then submitted with the reason. */
+async function reportEmptySite(site: SiteCode, reason: string) {
+  const id = await ensureStack(site, EMPTY_STACK, "Nothing to count here");
+  unwrap(await Stk_stacksService.update(id, { stk_nothinghere: true } as never), "mark the site as empty");
+  await submitStack(site, EMPTY_STACK, reason);
+}
+
 async function completeRecount(name: string) {
   const id = s.recountId.get(name);
   if (!id) throw new Error(`Recount ${name} not found`);
@@ -649,6 +664,8 @@ export const dataverseSource: DataSource = {
   saveCount,
   submitStack,
   addTpStack,
+  reportEmptySite,
+  finishSite,
   completeRecount,
   addIssue,
 };

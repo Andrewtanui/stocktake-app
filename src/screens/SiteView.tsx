@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Lock, MapPin, MapPinOff, Plus, Search } from "lucide-react";
+import { CircleCheck, CircleSlash, Flag, Lock, MapPin, MapPinOff, Plus, Search } from "lucide-react";
 import { useNav } from "../App";
-import { bayCode, gridCode, iberoAssignment, iberoGrid, isMyBay, isMyStack, linesAt, myRows, parseZone, readLocation, site, zoneWords } from "../data/repository";
+import { bayCode, gridCode, iberoAssignment, iberoGrid, isMyBay, isMyStack, linesAt, myRows, mySites, parseZone, readLocation, site, zoneWords } from "../data/repository";
+import { EMPTY_STACK } from "../data/source";
 import { useStore } from "../data/store";
 import type { SiteCode, StackStatus, ZoneCell } from "../data/types";
 import { Code, Notice, PageHead, Pill, Row, STATUS_LABEL, Section, Sheet, StatusIcon, n } from "../ui/kit";
@@ -11,6 +12,9 @@ export default function SiteView({ code }: { code: SiteCode }) {
   const back = { label: "Home", onClick: () => go({ tab: "count", view: "home" }) };
   return site(code).thirdParty ? <ThirdParty code={code} back={back} /> : <FloorMap back={back} />;
 }
+
+/** Why a third-party site had nothing to count (the supervisor sees the choice; never a figure). */
+const EMPTY_REASONS = ["Coffee delivered or moved out before the count", "No NKG coffee stored here now", "Other"];
 
 const RANK: StackStatus[] = ["todo", "done", "active", "variance"];
 
@@ -138,7 +142,18 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
   const store = useStore();
   const s = site(code);
   const lots = linesAt(code).filter((l) => l.t === "W");
-  const stacks = store.tpStacksAt(code);
+  const empty = store.stackState(code, EMPTY_STACK);
+  const stacks = store.tpStacksAt(code).filter((x) => x.name !== EMPTY_STACK);
+  const mine = mySites().includes(code);
+  // "Nothing to count here" is offered on my own sites until something is recorded there.
+  const canReportEmpty = mine && !empty && !stacks.length && !store.counts.some((c) => c.site === code);
+  // "Finish counting" once every recorded stack is submitted: lots nobody counted then show as not found.
+  const open = stacks.filter((st) => !store.stackState(code, st.name));
+  const canFinish = mine && !empty && stacks.length > 0;
+  const [finishing, setFinishing] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [why, setWhy] = useState(EMPTY_REASONS[0]);
+  const [whyText, setWhyText] = useState("");
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
@@ -151,16 +166,28 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
     <div className="page">
       <PageHead back={back} title={s.name} sub={`Third party · ${n(lots.length)} lots`} />
 
-      <Notice tone="neutral" icon={<MapPinOff size={18} />} title="No stack locations in XBS">
-        Record each stack with a landmark before you count it.
-      </Notice>
+      {empty?.empty ? (
+        <Notice tone="info" icon={<CircleSlash size={18} />} title={`Reported empty${empty.at ? ` at ${empty.at}` : ""}`}>
+          {empty.comment}. Your supervisor checks it like a count.
+        </Notice>
+      ) : empty?.finished ? (
+        <Notice tone="ok" icon={<CircleCheck size={18} />} title={`Finished${empty.at ? ` at ${empty.at}` : ""}`}>
+          Every stack here is counted. Lots XBS expects here that weren't counted show to your supervisor as not found.
+        </Notice>
+      ) : (
+        <Notice tone="neutral" icon={<MapPinOff size={18} />} title="No stack locations in XBS">
+          Record each stack with a landmark before you count it.
+        </Notice>
+      )}
 
       <Section
         title="Stacks"
         action={
-          <button className="text-btn" onClick={() => setAdding(true)}>
-            <Plus size={16} aria-hidden /> Record a stack
-          </button>
+          !empty && (
+            <button className="text-btn" onClick={() => setAdding(true)}>
+              <Plus size={16} aria-hidden /> Record a stack
+            </button>
+          )
         }
       >
         {stacks.map((st) => (
@@ -177,7 +204,24 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
             onClick={() => go({ tab: "count", view: "stack", site: code, stack: st.name })}
           />
         ))}
-        {!stacks.length && <p className="empty">No stacks yet. Record the first one to start.</p>}
+        {!stacks.length && !empty?.empty && <p className="empty">No stacks yet. Record the first one to start.</p>}
+        {canFinish && (
+          <>
+            <button type="button" className="btn btn-primary btn-block" disabled={open.length > 0} onClick={() => setFinishing(true)}>
+              <Flag size={18} aria-hidden /> Finish counting at {s.short}
+            </button>
+            {open.length > 0 && (
+              <p className="hint">
+                Submit {open.length === 1 ? `${open[0].name}` : `the ${open.length} open stacks`} first, then finish the site.
+              </p>
+            )}
+          </>
+        )}
+        {canReportEmpty && (
+          <button type="button" className="btn btn-block" onClick={() => setReporting(true)}>
+            <CircleSlash size={18} aria-hidden /> Nothing to count here
+          </button>
+        )}
       </Section>
 
       <Section
@@ -203,6 +247,53 @@ function ThirdParty({ code, back }: { code: SiteCode; back: { label: string; onC
         ))}
         {shown.length > 25 && <p className="empty">{n(shown.length - 25)} more — search to narrow.</p>}
       </Section>
+
+      {finishing && (
+        <Sheet title={`Finish counting at ${s.short}?`} onClose={() => setFinishing(false)}>
+          <p className="hint">
+            Only when you've counted every stack at {s.short}. Lots XBS expects here that you didn't count will show to your supervisor as not found.
+          </p>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={() => {
+              store.finishSite(code);
+              setFinishing(false);
+            }}
+          >
+            Finish {s.short}
+          </button>
+        </Sheet>
+      )}
+
+      {reporting && (
+        <Sheet title="Nothing to count here" onClose={() => setReporting(false)}>
+          <p className="hint">Only if there are no NKG bags at {s.short} at all. If you find any, record a stack and count them instead.</p>
+          <fieldset className="field radio-group">
+            <legend className="label">Why?</legend>
+            {EMPTY_REASONS.map((x) => (
+              <label key={x} className="radio-line">
+                <input type="radio" name="why-empty" checked={why === x} onChange={() => setWhy(x)} /> {x}
+              </label>
+            ))}
+          </fieldset>
+          {why === "Other" && (
+            <label className="field">
+              <span className="label">What happened</span>
+              <input className="input" value={whyText} onChange={(e) => setWhyText(e.target.value)} placeholder="e.g. Warehouse says the lots went to the port on 30 Aug" />
+            </label>
+          )}
+          <button
+            className="btn btn-primary btn-lg"
+            disabled={why === "Other" && !whyText.trim()}
+            onClick={() => {
+              store.reportEmptySite(code, why === "Other" ? whyText.trim() : why);
+              setReporting(false);
+            }}
+          >
+            Report {s.short} empty
+          </button>
+        </Sheet>
+      )}
 
       {adding && (
         <Sheet title="Record a stack" onClose={() => setAdding(false)}>

@@ -344,3 +344,8 @@ textarea.input { resize: vertical; }
 .photo-thumb img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; flex: none; }
 .photo-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .photo-meta .btn-pair { flex-wrap: wrap; }
+
+/* "Nothing to count here" reasons */
+.radio-group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.radio-line { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 16px; }
+.radio-line input { width: 20px; height: 20px; accent-color: var(--brand-neumann-green); }

@@ -34,6 +34,8 @@ const REFERENCE: Reference = {
   assignments: [
     { site: "IBR", rows: ["D", "E"], sections: ["D", "E", "D/E"], label: "Ibero rows D and E; between D and E" },
     { site: "AGL", rows: [], sections: [], label: "AGL" },
+    // Nothing recorded here yet: shows "Nothing to count here".
+    { site: "KCCE", rows: [], sections: [], label: "KCCE" },
   ],
 };
 
@@ -182,6 +184,8 @@ export const mockSource: DataSource = {
   saveCount: ok,
   submitStack: ok,
   addTpStack: ok,
+  reportEmptySite: ok,
+  finishSite: ok,
   completeRecount: ok,
   addIssue: ok,
 };

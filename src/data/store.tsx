@@ -6,7 +6,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { kgOf, unitsOf } from "./calc";
 import { isMyStack, setReference } from "./repository";
-import { getSource, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./source";
+import { EMPTY_STACK, getSource, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./source";
 import type { Issue, SiteCode, StackStatus } from "./types";
 import { LoadError, Splash } from "../ui/Splash";
 
@@ -121,6 +121,36 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
 
     tpStacksAt(site: SiteCode) {
       return tpStacks[site] ?? [];
+    },
+    /** Nothing to count at this third-party site: reported with the reason instead of a count. */
+    reportEmptySite(site: SiteCode, reason: string) {
+      const k = key(site, EMPTY_STACK);
+      setTpStacks((t) => ({ ...t, [site]: [...(t[site] ?? []), { name: EMPTY_STACK, note: "Nothing to count here" }] }));
+      setStacks((s) => ({ ...s, [k]: { state: "submitted", at: now(), comment: reason, empty: true } }));
+      persist(source.reportEmptySite(site, reason), "the empty site", () => {
+        setTpStacks((t) => ({ ...t, [site]: (t[site] ?? []).filter((x) => x.name !== EMPTY_STACK) }));
+        setStacks((s) => {
+          const next = { ...s };
+          delete next[k];
+          return next;
+        });
+      });
+      flash("Reported. Your supervisor will check it.");
+    },
+    /** Every stack at this third-party site is counted. */
+    finishSite(site: SiteCode) {
+      const k = key(site, EMPTY_STACK);
+      setTpStacks((t) => ({ ...t, [site]: [...(t[site] ?? []), { name: EMPTY_STACK, note: "Site finished" }] }));
+      setStacks((s) => ({ ...s, [k]: { state: "submitted", at: now(), comment: "Every stack at the site is counted", finished: true } }));
+      persist(source.finishSite(site), "the finished site", () => {
+        setTpStacks((t) => ({ ...t, [site]: (t[site] ?? []).filter((x) => x.name !== EMPTY_STACK) }));
+        setStacks((s) => {
+          const next = { ...s };
+          delete next[k];
+          return next;
+        });
+      });
+      flash("Site finished. Your supervisor sees what wasn't found.");
     },
     addTpStack(site: SiteCode, s: TpStack) {
       setTpStacks((t) => ({ ...t, [site]: [...(t[site] ?? []), s] }));

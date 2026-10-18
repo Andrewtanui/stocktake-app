@@ -40,7 +40,14 @@ export interface StackState {
   at: string;
   by?: string;
   comment?: string;
+  /** A third-party site reported as having nothing to count (the comment says why). */
+  empty?: boolean;
+  /** A third-party site the counter finished: every stack there is counted. */
+  finished?: boolean;
 }
+
+/** The site's marker stack: reported empty, or finished (every stack counted). */
+export const EMPTY_STACK = "Whole site";
 
 export interface TpStack {
   name: string;
@@ -67,6 +74,10 @@ export interface DataSource {
   saveCount(entry: CountEntry): Promise<void>;
   submitStack(site: SiteCode, stack: string, comment: string): Promise<void>;
   addTpStack(site: SiteCode, stack: TpStack): Promise<void>;
+  /** A third-party site with nothing to count: submitted with the reason, no lines (blind - no figures). */
+  reportEmptySite(site: SiteCode, reason: string): Promise<void>;
+  /** Every stack at this third-party site is counted: lots XBS expects there and nobody counted are not found. */
+  finishSite(site: SiteCode): Promise<void>;
   completeRecount(id: string): Promise<void>;
   addIssue(issue: Issue): Promise<void>;
 }

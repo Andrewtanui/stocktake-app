@@ -12,3 +12,4 @@ export async function getSource(): Promise<DataSource> {
 }
 
 export type { CountEntry, CounterData, DataSource, StackState, TpStack } from "./types";
+export { EMPTY_STACK } from "./types";
