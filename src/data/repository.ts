@@ -100,9 +100,15 @@ export const CATEGORIES: StockCategory[] = [
   "Disputed stock",
   "Direct purchase (not in XBS)",
   "Ex-office stock",
+  "Franchise",
 ];
-/** Categories counted without an XBS outturn, from the "Other stock" screen. */
-export const OTHER_CATEGORIES = CATEGORIES.slice(3);
+/**
+ * Categories counted without an XBS outturn, from the "Other stock" screen: the warehouse's
+ * sub-products first (Finance's "Subproducts" line: ex-office, sweepings, franchise), then the rest.
+ */
+export const OTHER_CATEGORIES: StockCategory[] = ["Ex-office stock", "Sweepings", "Franchise", "Loose bags", "Disputed stock", "Direct purchase (not in XBS)"];
+/** Ex-office sweepings are graded Type 1, 2 or 3 (the warehouse's sub-products report). */
+export const EX_OFFICE_TYPES = ["TYPE 1", "TYPE 2", "TYPE 3"];
 
 export const REASONS: VarianceReason[] = [
   "Part of the lot is at another location",

@@ -62,7 +62,8 @@ export type StockCategory =
   | "Loose bags"
   | "Disputed stock"
   | "Direct purchase (not in XBS)"
-  | "Ex-office stock";
+  | "Ex-office stock"
+  | "Franchise";
 
 /** Reasons a counter can give for a variance. Supervisors refine these later. */
 export type VarianceReason =

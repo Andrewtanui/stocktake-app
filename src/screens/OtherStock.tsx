@@ -2,23 +2,31 @@ import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useNav } from "../App";
 import { bags60, kgOf, pocketProblem, pocketWarning, unitsOf, withPocket, type Qty } from "../data/calc";
-import { OTHER_CATEGORIES, PACK_TYPES } from "../data/repository";
+import { EX_OFFICE_TYPES, OTHER_CATEGORIES, PACK_TYPES } from "../data/repository";
 import { useStore } from "../data/store";
 import type { PackType, SiteCode, StockCategory } from "../data/types";
 import { ActionBar, PageHead, Segmented, Stepper, n } from "../ui/kit";
 
 const HELP: Partial<Record<StockCategory, string>> = {
-  Sweepings: "Coffee swept from the floor and bagged.",
+  "Ex-office stock": "Ex-office sweepings, graded Type 1, 2 or 3.",
+  Sweepings: "Clean coffee swept from the warehouse floor and bagged.",
+  Franchise: "Franchise gains left after a contract is bulked (KDI no.), or gains already bulked (KIB no.).",
   "Loose bags": "Bags with no tag or lot.",
   "Disputed stock": "Owner or lot in question — say why in the note.",
   "Direct purchase (not in XBS)": "Bought from a co-operative or agent, not in XBS yet.",
-  "Ex-office stock": "Waiting to leave on an ex-office transfer.",
+};
+
+/** A franchise lot's number as the register writes it: "6088" -> "KDI6088", "kib 35376" -> "KIB35376". */
+const franchiseRef = (x: string) => {
+  const t = x.trim().toUpperCase().replace(/\s+/g, "");
+  return /^\d/.test(t) ? `KDI${t}` : t;
 };
 
 export default function OtherStock({ site: code, stack }: { site: SiteCode; stack: string }) {
   const go = useNav();
   const store = useStore();
-  const [category, setCategory] = useState<StockCategory>("Sweepings");
+  const [category, setCategory] = useState<StockCategory>("Ex-office stock");
+  const [type, setType] = useState(EX_OFFICE_TYPES[0]);
   const [grade, setGrade] = useState("");
   const [ref, setRef] = useState("");
   const [note, setNote] = useState("");
@@ -30,7 +38,10 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
   const [okPocketKg, setOkPocketKg] = useState<number | null>(null);
   const needsConfirm = !!warning && okPocketKg !== q.pocketKg;
   const direct = category === "Direct purchase (not in XBS)";
-  const canSave = unitsOf(q) > 0 && !problem && !needsConfirm && (!direct || ref.trim().length > 0);
+  const exOffice = category === "Ex-office stock";
+  const franchise = category === "Franchise";
+  const kdi = franchise && /^(KDI|KIB)/.test(franchiseRef(ref));
+  const canSave = unitsOf(q) > 0 && !problem && !needsConfirm && (!direct || ref.trim().length > 0) && (!franchise || kdi);
   const back = () => go({ tab: "count", view: "stack", site: code, stack });
 
   return (
@@ -55,11 +66,28 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
       </section>
 
       <section className="card">
+        {exOffice && (
+          <div className="field">
+            <span className="label">Type</span>
+            <Segmented<string> label="Type" value={type} onChange={setType} options={EX_OFFICE_TYPES.map((t) => [t, t.replace("TYPE", "Type")])} />
+          </div>
+        )}
         <div className="split-2">
-          <label className="field">
-            <span className="label">Grade (if known)</span>
-            <input className="input" value={grade} onChange={(e) => setGrade(e.target.value.toUpperCase())} placeholder="AB" />
-          </label>
+          {!exOffice && (
+            <label className="field">
+              <span className="label">{franchise ? "Quality (if known)" : "Grade (if known)"}</span>
+              <input className="input" value={grade} onChange={(e) => setGrade(e.target.value.toUpperCase())} placeholder={franchise ? "ABC FAQ" : "AB"} />
+            </label>
+          )}
+          {franchise && (
+            <label className="field">
+              <span className="label">KDI or KIB number</span>
+              <input className="input code" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="KDI6088" aria-describedby="fr-hint" />
+              <span id="fr-hint" className="hint">
+                {ref.trim() && !kdi ? "Start with KDI (gains) or KIB (bulked)." : "Gains: the KDI no. Bulked: the KIB no."}
+              </span>
+            </label>
+          )}
           {direct && (
             <label className="field">
               <span className="label">Contract / delivery note</span>
@@ -115,12 +143,12 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
               site: code,
               stack,
               batch: `OTHER-${Date.now()}`,
-              outturn: category,
-              grade: grade || "—",
+              outturn: franchise ? franchiseRef(ref) : category,
+              grade: exOffice ? type : grade || "—",
               category,
               ...q,
               note: note.trim() || undefined,
-              reference: ref.trim() || undefined,
+              reference: (franchise ? franchiseRef(ref) : ref.trim()) || undefined,
               other: true,
             });
             back();
