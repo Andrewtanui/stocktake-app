@@ -24,6 +24,7 @@ import { Stk_recountsService } from "../../generated/services/Stk_recountsServic
 import { Stk_sitesService } from "../../generated/services/Stk_sitesService";
 import { Stk_stacksService } from "../../generated/services/Stk_stacksService";
 import { Stk_stocktakesService } from "../../generated/services/Stk_stocktakesService";
+import { Stk_settingsService } from "../../generated/services/Stk_settingsService";
 import { Stk_xbsimportsService } from "../../generated/services/Stk_xbsimportsService";
 import { Stk_xbslinesService } from "../../generated/services/Stk_xbslinesService";
 import { SystemusersService } from "../../generated/services/SystemusersService";
@@ -34,7 +35,7 @@ import { Stk_recountsstk_status } from "../../generated/models/Stk_recountsModel
 import { Stk_stacksstk_status } from "../../generated/models/Stk_stacksModel";
 import { Stk_stocktakesstk_status, Stk_stocktakesstk_type } from "../../generated/models/Stk_stocktakesModel";
 import type { Reference } from "../repository";
-import type { Assignment, Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, VarianceReason, XbsLine } from "../types";
+import type { Assignment, Issue, IssueCategory, PackType, RecountTask, Site, SiteCode, StockCategory, StockTakeType, VarianceReason, XbsLine } from "../types";
 import { EMPTY_STACK, type CountEntry, type CounterData, type DataSource, type StackState, type TpStack } from "./types";
 import type { Photo } from "../photo";
 import { bags60, kgOf, unitsOf } from "../../shared/count-rules";
@@ -150,11 +151,33 @@ async function load(): Promise<CounterData> {
   s.me = me.id;
 
   const live = code(Stk_stocktakesstk_status, "Count in progress");
-  const [stockTake] = await all(
+  let [stockTake] = await all(
     (o) => Stk_stocktakesService.getAll(o),
     { select: ["stk_stocktakeid", "stk_name", "stk_type", "stk_countdate", "_stk_import_value"], filter: `stk_status eq ${live}`, orderBy: ["stk_countdate desc"], top: 1 },
     "find the stock take",
   );
+  // Setting CounterAppOpenAfterClose = true (demo environments only): open the latest stock take
+  // even after counting has closed, with a notice. Off everywhere else: counting stays closed.
+  let closedNote: string | undefined;
+  if (!stockTake) {
+    const [openAfter] = await all(
+      (o) => Stk_settingsService.getAll(o),
+      { select: ["stk_value"], filter: "stk_name eq 'CounterAppOpenAfterClose'", top: 1 },
+      "read the settings",
+    ).catch(() => []);
+    if ((openAfter?.stk_value ?? "").trim().toLowerCase() === "true") {
+      const [latest] = await all(
+        (o) => Stk_stocktakesService.getAll(o),
+        { select: ["stk_stocktakeid", "stk_name", "stk_type", "stk_countdate", "_stk_import_value", "stk_status"], orderBy: ["stk_countdate desc"], top: 1 },
+        "find the stock take",
+      );
+      if (latest) {
+        stockTake = latest;
+        const status = label(Stk_stocktakesstk_status, (latest as { stk_status?: number }).stk_status) ?? "closed";
+        closedNote = `Counting is closed (the stock take is in ${status.toLowerCase()}). The app is open for a demonstration; anything saved still goes into this stock take.`;
+      }
+    }
+  }
   if (!stockTake) {
     // Say why there's nothing to count: the latest one may be past counting.
     const [latest] = await all(
@@ -276,7 +299,7 @@ async function load(): Promise<CounterData> {
     stockTake: {
       id: s.stockTakeId,
       title: stockTake.stk_name,
-      type: label(Stk_stocktakesstk_type, stockTake.stk_type) === "100% (zero-out)" ? "100% stock take" : "Monthly stock take",
+      type: (({ "100% (zero-out)": "100% stock take", "Ad hoc": "Ad hoc stock take" }) as Record<string, StockTakeType>)[label(Stk_stocktakesstk_type, stockTake.stk_type) ?? ""] ?? "Monthly stock take",
       countDate: day(stockTake.stk_countdate),
       snapshot: `XBS stock imported ${day(importRow.stk_snapshotat)}, ${hhmm(importRow.stk_snapshotat)}`,
       sites: sites.map((x) => x.code),
@@ -430,6 +453,7 @@ async function load(): Promise<CounterData> {
     recounts,
     recountsDone: recountRows.filter((r) => r.stk_status === done).map((r) => r.stk_name),
     issues,
+    closedNote,
   };
 }
 

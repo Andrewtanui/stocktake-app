@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useNav } from "../App";
-import { bags60, kgOf, pocketProblem, unitsOf, withPocket, type Qty } from "../data/calc";
+import { bags60, kgOf, pocketProblem, pocketWarning, unitsOf, withPocket, type Qty } from "../data/calc";
 import { OTHER_CATEGORIES, PACK_TYPES } from "../data/repository";
 import { useStore } from "../data/store";
 import type { PackType, SiteCode, StockCategory } from "../data/types";
@@ -25,8 +25,12 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
   const [q, setQ] = useState<Qty>({ pack: "JUTE60", bags: 0, pocketBags: 0, pocketKg: 0 });
   const set = (p: Partial<Qty>) => setQ((x) => ({ ...x, ...p }));
   const problem = pocketProblem(q);
+  // A pocket over two full bags is saved only once the counter confirms that weight.
+  const warning = pocketWarning(q);
+  const [okPocketKg, setOkPocketKg] = useState<number | null>(null);
+  const needsConfirm = !!warning && okPocketKg !== q.pocketKg;
   const direct = category === "Direct purchase (not in XBS)";
-  const canSave = unitsOf(q) > 0 && !problem && (!direct || ref.trim().length > 0);
+  const canSave = unitsOf(q) > 0 && !problem && !needsConfirm && (!direct || ref.trim().length > 0);
   const back = () => go({ tab: "count", view: "stack", site: code, stack });
 
   return (
@@ -73,6 +77,21 @@ export default function OtherStock({ site: code, stack }: { site: SiteCode; stac
           <p className="hint hint-crit" role="alert">
             <TriangleAlert size={15} aria-hidden /> {problem}
           </p>
+        )}
+        {warning && (
+          <div className="hint hint-warn" role="alert">
+            <TriangleAlert size={15} aria-hidden />
+            <span>
+              {warning}{" "}
+              {needsConfirm ? (
+                <button type="button" className="link" onClick={() => setOkPocketKg(q.pocketKg)}>
+                  Yes, {q.pocketKg} kg is right
+                </button>
+              ) : (
+                "Confirmed."
+              )}
+            </span>
+          </div>
         )}
         <label className="field">
           <span className="label">Note</span>

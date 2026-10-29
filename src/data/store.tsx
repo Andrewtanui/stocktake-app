@@ -161,6 +161,10 @@ function useStoreState(me: string, source: DataSource, data: CounterData) {
     recount(id: string) {
       return data.recounts.find((r) => r.id === id);
     },
+    /** Counting is closed but the app is open for a demonstration (CounterAppOpenAfterClose). */
+    closedNote() {
+      return data.closedNote;
+    },
     recountsOpen() {
       return data.recounts.filter((r) => !recountsDone.includes(r.id));
     },

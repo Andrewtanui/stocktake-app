@@ -13,3 +13,4 @@ export const withPocket = rules.withPocket;
 export const bags60 = rules.bags60;
 export const kgOf = (q: Qty) => rules.kgOf(q, pack(q.pack).kg);
 export const pocketProblem = rules.pocketProblem;
+export const pocketWarning = (q: Qty) => rules.pocketWarning(q, pack(q.pack).kg);

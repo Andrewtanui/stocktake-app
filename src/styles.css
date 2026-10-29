@@ -78,6 +78,7 @@ p { margin: 0; }
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 .greeting { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
 .footnote { font-size: 12px; color: var(--ink-3); text-align: center; padding: 4px 12px; }
+.page > .slogan { margin: 0; padding: 0 12px 8px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--brand-neumann-green); }
 .empty { padding: 16px; color: var(--ink-2); font-size: 15px; }
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 40px 16px; color: var(--ink-2); text-align: center; }
 .empty-state svg { color: var(--brand-fresh-green); margin-bottom: 6px; }
@@ -324,12 +325,19 @@ textarea.input { resize: vertical; }
 
 /* ---------- start-up: loading and load error ---------- */
 .splash {
-  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px;
-  background: var(--brand-neumann-green); color: var(--brand-white); text-align: center;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px;
+  background:
+    radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--brand-neumann-green) 82%, #3d8a3a) 0%, var(--brand-neumann-green) 48%, color-mix(in srgb, var(--brand-neumann-green) 70%, var(--brand-black)) 100%);
+  color: var(--brand-white); text-align: center;
 }
-.splash-logo { width: 220px; height: auto; }
+.splash-logo { width: clamp(220px, 34vw, 320px); height: auto; }
 .splash p { opacity: 0.9; }
-.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--brand-white) 30%, transparent); border-top-color: var(--brand-white); animation: spin 0.8s linear infinite; }
+/* The slogan as on NKG's artwork: a white panel, then the second line in yellow. */
+.splash-slogan { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0; opacity: 1 !important; text-transform: uppercase; font-weight: 900; line-height: 1; letter-spacing: 0.01em; }
+.splash-slogan-1 { padding: 8px 14px 6px; background: var(--brand-white); color: var(--brand-neumann-green); font-size: clamp(26px, 4.6vw, 46px); transform: rotate(-1deg); }
+.splash-slogan-2 { color: var(--brand-yellow); font-size: clamp(28px, 5vw, 50px); text-shadow: 0 2px 10px color-mix(in srgb, var(--brand-black) 25%, transparent); }
+.splash-status { margin: 0; font-size: 15px; }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--brand-white) 28%, transparent); border-top-color: var(--brand-yellow); animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .splash-card { width: min(400px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px; border-radius: var(--r-lg); background: var(--surface); color: var(--text); }
 .splash-card svg { color: var(--brand-neumann-red); }

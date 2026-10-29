@@ -289,7 +289,7 @@
           "x-ms-dataverse-attribute": "stk_value",
           "x-ms-dataverse-type": "StringType",
           "x-ms-schema-name": "stk_value",
-          "maxLength": 200
+          "maxLength": 2000
         },
         "timezoneruleversionnumber": {
           "type": "string",

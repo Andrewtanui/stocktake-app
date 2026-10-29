@@ -86,7 +86,7 @@ export interface ZoneCell {
   between?: { up: boolean; down: boolean };
 }
 
-export type StockTakeType = "Monthly stock take" | "100% stock take";
+export type StockTakeType = "Monthly stock take" | "100% stock take" | "Ad hoc stock take";
 
 export interface StockTake {
   id: string;

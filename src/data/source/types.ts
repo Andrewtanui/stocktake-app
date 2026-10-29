@@ -64,6 +64,8 @@ export interface CounterData {
   recounts: RecountTask[];
   recountsDone: string[];
   issues: Issue[];
+  /** Set when counting is closed but the app is open anyway (setting CounterAppOpenAfterClose, demos). */
+  closedNote?: string;
 }
 
 export interface DataSource {

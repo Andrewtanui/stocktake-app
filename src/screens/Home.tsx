@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowRight,
   ChevronDown,
+  Info,
   Map,
   RotateCcw,
   ScanLine,
@@ -22,6 +23,7 @@ import {
 } from "../data/repository";
 import type { Site } from "../data/types";
 import { useStore } from "../data/store";
+import { SLOGAN } from "../shared/brand";
 import { useWho } from "../PowerProvider";
 import { Code, Ring, Row, Section, StatusIcon, n } from "../ui/kit";
 
@@ -106,6 +108,18 @@ export default function Home() {
         </h1>
         <p className="subtitle">{myAreaWords()}</p>
       </header>
+
+      {store.closedNote() && (
+        <div className="notice notice-info">
+          <span className="notice-icon">
+            <Info size={18} aria-hidden />
+          </span>
+          <span className="notice-body">
+            <strong className="notice-title">Demonstration</strong>
+            <span className="notice-text">{store.closedNote()}</span>
+          </span>
+        </div>
+      )}
 
       {recounts.length > 0 && (
         <button
@@ -255,6 +269,7 @@ export default function Home() {
           ? `Design preview · expected stock from the ${STOCK_TAKE.snapshot} · counts stay in this tab. Tap “Online” to try offline mode.`
           : `Expected stock from the ${STOCK_TAKE.snapshot} · counts are saved to Dataverse.`}
       </p>
+      <p className="slogan">{SLOGAN}</p>
     </div>
   );
 }

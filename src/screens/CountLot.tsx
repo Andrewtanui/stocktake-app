@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, EyeOff, PackageSearch, Shuffle, TriangleAlert, Users } from "lucide-react";
 import { useNav } from "../App";
-import { bags60, kgOf, pocketProblem, unitsOf, withPocket, type Qty } from "../data/calc";
+import { bags60, kgOf, pocketProblem, pocketWarning, unitsOf, withPocket, type Qty } from "../data/calc";
 import {
   CATEGORIES,
   PACK_TYPES,
@@ -85,8 +85,12 @@ export default function CountLot({
   const units = unitsOf(q);
   const kg = kgOf(q);
   const problem = pocketProblem(q);
+  // A pocket over two full bags is saved only once the counter confirms that weight.
+  const warning = pocketWarning(q);
+  const [okPocketKg, setOkPocketKg] = useState<number | null>(mine && !task ? mine.pocketKg : null);
+  const needsConfirm = !!warning && okPocketKg !== q.pocketKg;
   const blind = !!task;
-  const canSave = touched && !problem;
+  const canSave = touched && !problem && !needsConfirm;
   const nextLot = !s.thirdParty && !from
     ? here.find((l) => l.batch !== batch && !store.entriesAt(code, stack).some((e) => e.batch === l.batch))
     : undefined;
@@ -198,6 +202,21 @@ export default function CountLot({
           <p className="hint hint-crit" role="alert">
             <TriangleAlert size={15} aria-hidden /> {problem}
           </p>
+        )}
+        {warning && (
+          <div className="hint hint-warn" role="alert">
+            <TriangleAlert size={15} aria-hidden />
+            <span>
+              {warning}{" "}
+              {needsConfirm ? (
+                <button type="button" className="link" onClick={() => setOkPocketKg(q.pocketKg)}>
+                  Yes, {q.pocketKg} kg is right
+                </button>
+              ) : (
+                "Confirmed."
+              )}
+            </span>
+          </div>
         )}
       </section>
 
